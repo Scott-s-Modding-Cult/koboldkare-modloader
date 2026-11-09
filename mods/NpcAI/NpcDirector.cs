@@ -29,19 +29,29 @@ namespace KoboldKareNpcAI {
             }
             Enabled = enabled;
             if (!enabled) {
+                // Each step is guarded so one failure can't leave NPCs stuck or station sets moved.
                 foreach (var pairing in Pairings.ToArray()) {
-                    EndPairing(pairing, "AI disabled");
+                    ForceEndPairing(pairing, "AI disabled");
                 }
                 foreach (var brain in Brains.Values) {
-                    brain.Shutdown();
+                    try {
+                        brain.Shutdown();
+                    } catch (System.Exception e) {
+                        LogError("releasing an NPC", e);
+                    }
                 }
                 Brains.Clear();
                 // Put any borrowed in-place station sets back right away.
                 foreach (var restore in PendingRestores) {
-                    InPlace.Restore(restore.Placement);
+                    try {
+                        InPlace.Restore(restore.Placement);
+                    } catch (System.Exception e) {
+                        LogError("putting a borrowed station set back", e);
+                    }
                 }
                 PendingRestores.Clear();
                 ReservedSets.Clear();
+                Quarantine.Clear();
             }
             nextScanTime = 0f;
             nextStationCacheTime = 0f;
@@ -76,28 +86,133 @@ namespace KoboldKareNpcAI {
                 return;
             }
 
+            // Every phase and every NPC is isolated: one broken kobold, station or pairing (a modded
+            // rig, a workshop station, another mod poking at the same objects) gets dropped and
+            // logged instead of throwing every frame and freezing all the other NPCs.
             float now = Time.time;
             if (now >= nextScanTime) {
                 nextScanTime = now + 2f;
-                Rescan();
+                Guard("scanning for NPCs", Rescan);
             }
             if (pendingRoleDump) {
                 pendingRoleDump = false;
-                DumpStationRoles();
+                Guard("listing station roles", DumpStationRoles);
             }
 
             TickList.Clear();
             TickList.AddRange(Brains.Values);
             foreach (var brain in TickList) {
-                brain.Tick();
+                try {
+                    brain.Tick();
+                } catch (System.Exception e) {
+                    DropBrain(brain, e);
+                }
             }
 
             UpdatePairings();
+            Guard("releasing orphaned NPCs", ReleaseOrphans);
             ProcessRestores();
 
             if (now >= nextMatchTime) {
                 nextMatchTime = now + 1.5f;
-                TryMatch();
+                Guard("matching partners", TryMatch);
+            }
+        }
+
+        // ---------------------------------------------------------------- error isolation
+
+        /// <summary>Kobolds whose brain threw; left alone until the time stored here.</summary>
+        private static readonly Dictionary<Kobold, float> Quarantine = new Dictionary<Kobold, float>();
+        private const float QuarantineSeconds = 30f;
+
+        private static readonly Dictionary<string, float> ErrorLogTimes = new Dictionary<string, float>();
+
+        private static void Guard(string what, System.Action action) {
+            try {
+                action();
+            } catch (System.Exception e) {
+                LogError(what, e);
+            }
+        }
+
+        /// <summary>Logs an error, but the same error from the same place at most once a minute.</summary>
+        private static void LogError(string what, System.Exception e) {
+            string key = what + "|" + e.GetType().FullName + "|" + e.Message;
+            if (ErrorLogTimes.TryGetValue(key, out float last) && Time.time < last + 60f) {
+                return;
+            }
+            ErrorLogTimes[key] = Time.time;
+            NpcAiPlugin.Log.LogError($"Error while {what} (skipped; the rest of the AI keeps running): {e}");
+        }
+
+        /// <summary>Stops driving a kobold whose brain threw and leaves it alone for a while.</summary>
+        private static void DropBrain(NpcBrain brain, System.Exception e) {
+            LogError($"driving {SafeName(brain)}", e);
+            var pairing = FindPairing(brain);
+            if (pairing != null) {
+                ForceEndPairing(pairing, "a member hit an error");
+            }
+            try {
+                brain.Shutdown();
+            } catch {
+                // Already broken; just stop tracking it.
+            }
+            foreach (var key in Brains.Where(kv => kv.Value == brain).Select(kv => kv.Key).ToArray()) {
+                Brains.Remove(key);
+                if (key != null) {
+                    Quarantine[key] = Time.time + QuarantineSeconds;
+                }
+            }
+        }
+
+        /// <summary>Ends a pairing, falling back to just forgetting it if the normal clean-up throws too.</summary>
+        private static void ForceEndPairing(Pairing p, string reason) {
+            try {
+                EndPairing(p, reason);
+                return;
+            } catch (System.Exception e) {
+                LogError("ending a pairing", e);
+            }
+            Pairings.Remove(p);
+            if (p.Placement != null) {
+                try {
+                    InPlace.Restore(p.Placement);
+                } catch (System.Exception e) {
+                    LogError("putting a borrowed station set back", e);
+                }
+            }
+            if (p.Set != null) {
+                ReservedSets.Remove(p.Set);
+            }
+        }
+
+        /// <summary>
+        /// An NPC heading to, waiting at or animating on a station with no pairing behind it would
+        /// otherwise stand there forever (e.g. matchmaking threw halfway). Send it back to idling.
+        /// </summary>
+        private static void ReleaseOrphans() {
+            foreach (var brain in Brains.Values.ToArray()) {
+                var state = brain.State;
+                if (state != NpcState.ToStation && state != NpcState.WaitingAtStation && state != NpcState.Paired) {
+                    continue;
+                }
+                if (FindPairing(brain) != null) {
+                    continue;
+                }
+                try {
+                    brain.FinishPairing(state == NpcState.Paired);
+                    NpcAiPlugin.Log.LogInfo($"{brain.Name} was {state} without a pairing; released it.");
+                } catch (System.Exception e) {
+                    DropBrain(brain, e);
+                }
+            }
+        }
+
+        private static string SafeName(NpcBrain brain) {
+            try {
+                return brain?.Name ?? "an NPC";
+            } catch {
+                return "an NPC";
             }
         }
 
@@ -173,18 +288,42 @@ namespace KoboldKareNpcAI {
         private static void Rescan() {
             // Drop brains for kobolds that died, despawned or got possessed by a player.
             foreach (var pair in Brains.ToArray()) {
-                if (!IsNpc(pair.Key)) {
+                bool stillNpc;
+                try {
+                    stillNpc = IsNpc(pair.Key);
+                } catch (System.Exception e) {
+                    DropBrain(pair.Value, e);
+                    continue;
+                }
+                if (!stillNpc) {
                     var pairing = FindPairing(pair.Value);
                     if (pairing != null) {
-                        EndPairing(pairing, "member no longer an NPC");
+                        ForceEndPairing(pairing, "member no longer an NPC");
                     }
-                    pair.Value.Shutdown();
+                    try {
+                        pair.Value.Shutdown();
+                    } catch (System.Exception e) {
+                        LogError("releasing an NPC", e);
+                    }
                     Brains.Remove(pair.Key);
                 }
             }
+
+            float now = Time.time;
+            foreach (var k in Quarantine.Where(kv => kv.Key == null || now >= kv.Value).Select(kv => kv.Key).ToArray()) {
+                Quarantine.Remove(k);
+            }
             foreach (var k in Object.FindObjectsOfType<Kobold>()) {
-                if (!Brains.ContainsKey(k) && IsNpc(k)) {
-                    Brains[k] = new NpcBrain(k);
+                if (Brains.ContainsKey(k) || Quarantine.ContainsKey(k)) {
+                    continue;
+                }
+                try {
+                    if (IsNpc(k)) {
+                        Brains[k] = new NpcBrain(k);
+                    }
+                } catch (System.Exception e) {
+                    LogError("taking control of " + (k != null ? k.name : "a kobold"), e);
+                    Quarantine[k] = now + QuarantineSeconds;
                 }
             }
         }
@@ -282,6 +421,7 @@ namespace KoboldKareNpcAI {
                 Set = set,
                 A = a, SlotA = plan.SlotA,
                 B = b, SlotB = plan.SlotB,
+                ADick = aDick, BDick = bDick,
                 Deadline = Time.time + 60f,
             };
             if (!a.AssignStation(stations[pairing.SlotA].transform.position) ||
@@ -321,6 +461,7 @@ namespace KoboldKareNpcAI {
                 Set = set,
                 A = a, SlotA = plan.SlotA,
                 B = b, SlotB = plan.SlotB,
+                ADick = aDick, BDick = bDick,
                 Deadline = Time.time + 45f,
                 InPlace = true,
             });
@@ -401,7 +542,32 @@ namespace KoboldKareNpcAI {
             public float EndTime;
             public float StartedAt;
             public bool InPlace;
+            public bool ADick, BDick;
             public InPlace.Placement Placement; // set once the station set has been moved
+        }
+
+        /// <summary>
+        /// Soft to fully hard in about 3 s, a little faster than the player's erection key (0.3/s),
+        /// so it's done by the time a pair that meets up close starts animating.
+        /// </summary>
+        private const float ArousalPerSecond = 0.35f;
+
+        /// <summary>
+        /// The game only raises arousal (which sizes the dick) from the player's erection key, being
+        /// grabbed, or a dick that is already penetrating, so an NPC's dick would stay soft and never
+        /// reach its partner. Pump it for every pair member with a dick, from the moment the pair is
+        /// matched until it ends. Any positive pump also holds off the game's slow decay; once the
+        /// pairing ends, the game's own decay (0.01/s after 10 s) softens it again. NPCs are owned by
+        /// the host and arousal is network-synced by the owner, so other players see it too.
+        /// </summary>
+        private static void Arouse(Pairing p) {
+            float amount = Time.deltaTime * ArousalPerSecond;
+            if (p.ADick) {
+                p.A.Kobold.PumpUpDick(amount);
+            }
+            if (p.BDick) {
+                p.B.Kobold.PumpUpDick(amount);
+            }
         }
 
         private class PendingRestore {
@@ -414,62 +580,96 @@ namespace KoboldKareNpcAI {
         private static void ProcessRestores() {
             for (int i = PendingRestores.Count - 1; i >= 0; i--) {
                 var r = PendingRestores[i];
-                if (r.Placement.Set == null) {
+                try {
+                    if (ProcessRestore(r)) {
+                        PendingRestores.RemoveAt(i);
+                    }
+                } catch (System.Exception e) {
+                    LogError("putting a borrowed station set back", e);
+                    // Try once more the plain way, then forget it so it can't throw every frame.
+                    try {
+                        InPlace.Restore(r.Placement);
+                    } catch {
+                        // Nothing else to do; reloading the map resets it.
+                    }
+                    if (r.Placement?.Set != null) {
+                        ReservedSets.Remove(r.Placement.Set);
+                    }
                     PendingRestores.RemoveAt(i);
-                    continue;
                 }
-                if (Time.time < r.Time) {
-                    continue;
-                }
-                // Someone (e.g. the player) is using the set where we left it; try again later.
-                if (FreeSlots(r.Placement.Set) < r.Placement.Set.GetAnimationStations().Count) {
-                    r.Time = Time.time + 5f;
-                    continue;
-                }
-                InPlace.Restore(r.Placement);
-                ReservedSets.Remove(r.Placement.Set);
-                PendingRestores.RemoveAt(i);
             }
+        }
+
+        /// <returns>true when the restore is done (or no longer needed).</returns>
+        private static bool ProcessRestore(PendingRestore r) {
+            if (r.Placement?.Set == null) {
+                return true;
+            }
+            if (Time.time < r.Time) {
+                return false;
+            }
+            // Someone (e.g. the player) is using the set where we left it; try again later.
+            if (FreeSlots(r.Placement.Set) < r.Placement.Set.GetAnimationStations().Count) {
+                r.Time = Time.time + 5f;
+                return false;
+            }
+            InPlace.Restore(r.Placement);
+            ReservedSets.Remove(r.Placement.Set);
+            return true;
         }
 
         private static Pairing FindPairing(NpcBrain brain) => Pairings.FirstOrDefault(p => p.A == brain || p.B == brain);
 
         private static void UpdatePairings() {
             foreach (var p in Pairings.ToArray()) {
-                if (p.Set == null || p.A.Kobold == null || p.B.Kobold == null) {
-                    EndPairing(p, "something despawned");
-                    continue;
+                if (!Pairings.Contains(p)) {
+                    continue; // already ended while handling an earlier one
                 }
+                try {
+                    UpdatePairing(p);
+                } catch (System.Exception e) {
+                    LogError($"running the pairing {SafeName(p.A)} + {SafeName(p.B)}", e);
+                    ForceEndPairing(p, "it hit an error");
+                }
+            }
+        }
 
-                if (!p.Started) {
-                    if (p.A.State != NpcState.ToStation && p.A.State != NpcState.WaitingAtStation ||
-                        p.B.State != NpcState.ToStation && p.B.State != NpcState.WaitingAtStation) {
-                        EndPairing(p, "a member was interrupted");
-                        continue;
-                    }
-                    bool bothThere = p.A.State == NpcState.WaitingAtStation && p.B.State == NpcState.WaitingAtStation;
-                    if (bothThere || Time.time > p.Deadline) {
-                        // If time ran out, only start if both at least got close.
-                        bool closeEnough = p.InPlace
-                            ? p.B.IsNear(p.A.Position, 4f)
-                            : p.A.IsNear(p.Set.transform.position, 6f) && p.B.IsNear(p.Set.transform.position, 6f);
-                        if (!bothThere && !closeEnough) {
-                            EndPairing(p, p.InPlace ? "couldn't reach the partner in time" : "couldn't reach the station in time");
-                            continue;
-                        }
-                        StartPairing(p);
-                    }
-                    continue;
-                }
+        private static void UpdatePairing(Pairing p) {
+            if (p.Set == null || p.A.Kobold == null || p.B.Kobold == null) {
+                EndPairing(p, "something despawned");
+                return;
+            }
 
-                // Running: end it when the timer is up, or if either kobold got pulled out
-                // (player grabbed them, used the station, ran out of energy...).
-                bool grace = Time.time < p.StartedAt + 3f;
-                if (!grace && (!p.A.IsAnimating || !p.B.IsAnimating)) {
-                    EndPairing(p, "animation was interrupted");
-                } else if (Time.time >= p.EndTime) {
-                    EndPairing(p, null);
+            Arouse(p);
+
+            if (!p.Started) {
+                if (p.A.State != NpcState.ToStation && p.A.State != NpcState.WaitingAtStation ||
+                    p.B.State != NpcState.ToStation && p.B.State != NpcState.WaitingAtStation) {
+                    EndPairing(p, "a member was interrupted");
+                    return;
                 }
+                bool bothThere = p.A.State == NpcState.WaitingAtStation && p.B.State == NpcState.WaitingAtStation;
+                if (bothThere || Time.time > p.Deadline) {
+                    // If time ran out, only start if both at least got close.
+                    bool closeEnough = p.InPlace
+                        ? p.B.IsNear(p.A.Position, 4f)
+                        : p.A.IsNear(p.Set.transform.position, 6f) && p.B.IsNear(p.Set.transform.position, 6f);
+                    if (!bothThere && !closeEnough) {
+                        EndPairing(p, p.InPlace ? "couldn't reach the partner in time" : "couldn't reach the station in time");
+                        return;
+                    }
+                    StartPairing(p);
+                }
+                return;
+            }
+
+            // Running: end it when the timer is up, or if either kobold got pulled out
+            // (player grabbed them, used the station, ran out of energy...).
+            bool grace = Time.time < p.StartedAt + 3f;
+            if (!grace && (!p.A.IsAnimating || !p.B.IsAnimating)) {
+                EndPairing(p, "animation was interrupted");
+            } else if (Time.time >= p.EndTime) {
+                EndPairing(p, null);
             }
         }
 

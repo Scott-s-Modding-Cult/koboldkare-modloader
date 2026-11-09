@@ -15,6 +15,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModManager", "ModManager\Mo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoiceChat", "mods\VoiceChat\VoiceChat.csproj", "{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "mods", "mods", "{ED7DE66D-1FF1-BCCD-393E-2D4AFCA661A0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MovieBlock", "mods\MovieBlock\MovieBlock.csproj", "{8988C568-66C7-41C5-9A82-10E9E504EBB3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,8 +101,23 @@ Global
 		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|x64.Build.0 = Release|Any CPU
 		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|x86.ActiveCfg = Release|Any CPU
 		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|x86.Build.0 = Release|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Debug|x64.Build.0 = Debug|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Debug|x86.Build.0 = Debug|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Release|x64.ActiveCfg = Release|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Release|x64.Build.0 = Release|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Release|x86.ActiveCfg = Release|Any CPU
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{8988C568-66C7-41C5-9A82-10E9E504EBB3} = {ED7DE66D-1FF1-BCCD-393E-2D4AFCA661A0}
 	EndGlobalSection
 EndGlobal

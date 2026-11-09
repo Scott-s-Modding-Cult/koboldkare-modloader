@@ -241,7 +241,21 @@ namespace UITheme {
         }
 
         private static Sprite LoadSprite(ThemeDefinition theme, SpriteSpec spec) {
-            var path = Path.Combine(theme.Folder, spec.File);
+            // Sprites must live inside the theme's own folder (no absolute paths or "..").
+            if (theme.Folder == null || string.IsNullOrEmpty(spec.File)) {
+                return null;
+            }
+            string root = Path.GetFullPath(theme.Folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string path;
+            try {
+                path = Path.GetFullPath(Path.Combine(root, spec.File.Replace('/', Path.DirectorySeparatorChar)));
+            } catch (Exception) {
+                path = null;
+            }
+            if (path == null || Path.IsPathRooted(spec.File) || !path.StartsWith(root, StringComparison.OrdinalIgnoreCase)) {
+                UIThemePlugin.Log.LogWarning($"Theme '{theme.Id}': sprite path leaves the theme folder, ignored: {spec.File}");
+                return null;
+            }
             if (!File.Exists(path)) {
                 UIThemePlugin.Log.LogWarning($"Theme '{theme.Id}': sprite file not found: {spec.File}");
                 return null;

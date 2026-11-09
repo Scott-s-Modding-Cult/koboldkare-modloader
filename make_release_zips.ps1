@@ -90,7 +90,7 @@ foreach ($zip in @(Get-ChildItem $modsOut -Filter *.zip) + @(Get-ChildItem $dist
     $archive = [IO.Compression.ZipFile]::OpenRead($zip.FullName)
     $names = $archive.Entries | ForEach-Object { $_.FullName }
     $archive.Dispose()
-    $bad = $names | Where-Object { $_ -match 'AIModule|AlpineAche|LogOutput|\.cfg$' }
+    $bad = $names | Where-Object { $_ -match 'AIModule|VideoModule|AlpineAche|LogOutput|\.cfg$' }
     if ($bad) { throw "$($zip.Name) contains files that must not be published: $($bad -join ', ')" }
 }
 Remove-Item $build -Recurse -Force -Confirm:$false

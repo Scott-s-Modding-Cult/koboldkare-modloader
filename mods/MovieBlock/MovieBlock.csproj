@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared settings and game references come from ../../Directory.Build.props. -->
+  <PropertyGroup>
+    <AssemblyName>KoboldKare.MovieBlock</AssemblyName>
+    <RootNamespace>MovieBlock</RootNamespace>
+    <Version>1.0.0</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>A floating 3D video screen that browses e621 or rule34.xxx by tag and plays the videos, with 3D sound. Commands: /movieblock e621, /movieblock r34. F7 to use the screen. Needs UnityEngine.VideoModule.dll from Unity 2021.3.45f2 in BepInEx\unstripped_corlib (see README). Only you see the screen.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The game's VideoModule is stripped down to Play/Pause/Stop. The full copy from a Unity 2021.3.45f2 install,
+         placed in BepInEx/unstripped_corlib, restores the rest (the native side in UnityPlayer.dll is complete). -->
+    <Reference Include="$(BepInExDir)\unstripped_corlib\UnityEngine.VideoModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.AudioModule.dll" Private="false" />
+    <!-- HTTP goes through Unity's native web requests: Mono's TLS stack fails in this game. -->
+    <Reference Include="$(ManagedDir)\UnityEngine.UnityWebRequestModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.ImageConversionModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Newtonsoft.Json.dll" Private="false" />
+  </ItemGroup>
+</Project>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using KoboldKare.ModKit;
 using UnityEngine;
@@ -19,18 +20,46 @@ namespace KoboldKareNpcAI {
 
         public static bool Allowed => NpcAiPlugin.InPlaceChance.Value > 0f && ModKit.IsAlone;
 
+        /// <summary>
+        /// Name fragments of station sets that are posed on furniture. Moving one of those to an empty
+        /// spot would leave the kobolds animating in mid-air, so they're never used in-place, whatever
+        /// InPlaceStations says. ("car" is deliberately missing: it would match CarpetStation.)
+        /// </summary>
+        private static readonly string[] FurnitureWords = {
+            "couch", "sofa", "bed", "table", "chair", "bench", "desk", "stool", "seat", "throne",
+            "toilet", "bath", "tub", "shower", "sink", "counter", "wall", "stocks", "pillory",
+            "swing", "sling",
+        };
+
+        private static readonly HashSet<string> WarnedFurniture = new HashSet<string>();
+
         public static bool IsCandidate(BreedingStation set) {
             string raw = NpcAiPlugin.InPlaceStations.Value ?? "";
             if (raw != parsedFrom) {
                 parsedFrom = raw;
                 names = raw.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
             }
+            string name = set.name;
+            bool listed = false;
             foreach (var n in names) {
-                if (set.name.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0) {
-                    return true;
+                if (name.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0) {
+                    listed = true;
+                    break;
                 }
             }
-            return false;
+            if (!listed) {
+                return false;
+            }
+            string furniture = FurnitureWords.FirstOrDefault(w => name.IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (furniture != null) {
+                if (WarnedFurniture.Add(name)) {
+                    NpcAiPlugin.Log.LogWarning(
+                        $"InPlaceStations matches '{name}', but it looks like a furniture pose (\"{furniture}\"); " +
+                        "it won't be used in-place.");
+                }
+                return false;
+            }
+            return true;
         }
 
         public class Placement {

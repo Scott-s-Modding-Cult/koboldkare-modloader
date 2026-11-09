@@ -70,34 +70,60 @@ namespace KoboldKareNpcAI {
         }
 
         private void BindConfig() {
-            RoamRadius = Config.Bind("Roaming", "RoamRadius", 25f,
+            // Ranges match the panel sliders. BepInEx clamps to them on load and on every set, so a
+            // hand-edited .cfg can't push values the AI was never meant to run with.
+            RoamRadius = Bind("Roaming", "RoamRadius", 25f, 5f, 80f,
                 "How far (in meters) an NPC picks its next wander point from where it stands.");
-            IdleMinSeconds = Config.Bind("Roaming", "IdleMinSeconds", 2f,
+            IdleMinSeconds = Bind("Roaming", "IdleMinSeconds", 2f, 0f, 30f,
                 "Minimum time an NPC stands around between walks.");
-            IdleMaxSeconds = Config.Bind("Roaming", "IdleMaxSeconds", 8f,
+            IdleMaxSeconds = Bind("Roaming", "IdleMaxSeconds", 8f, 0f, 60f,
                 "Maximum time an NPC stands around between walks.");
             Walk = Config.Bind("Roaming", "Walk", true,
                 "true = NPCs stroll at walking pace, false = they run.");
 
-            PairChance = Config.Bind("Pairing", "PairChance", 0.35f,
+            PairChance = Bind("Pairing", "PairChance", 0.35f, 0f, 1f,
                 "Chance (0-1), each time an NPC finishes idling, that it starts looking for a partner.");
-            PairMinSeconds = Config.Bind("Pairing", "PairMinSeconds", 25f,
+            PairMinSeconds = Bind("Pairing", "PairMinSeconds", 25f, 5f, 180f,
                 "Minimum length of a pairing.");
-            PairMaxSeconds = Config.Bind("Pairing", "PairMaxSeconds", 60f,
+            PairMaxSeconds = Bind("Pairing", "PairMaxSeconds", 60f, 5f, 300f,
                 "Maximum length of a pairing.");
-            PairCooldownSeconds = Config.Bind("Pairing", "PairCooldownSeconds", 45f,
+            PairCooldownSeconds = Bind("Pairing", "PairCooldownSeconds", 45f, 0f, 300f,
                 "How long an NPC waits after a pairing before it can pair again.");
-            MaxStationDistance = Config.Bind("Pairing", "MaxStationDistance", 80f,
+            MaxStationDistance = Bind("Pairing", "MaxStationDistance", 80f, 10f, 300f,
                 "Only use animation stations within this distance of the pair.");
 
-            InPlaceChance = Config.Bind("InPlace", "InPlaceChance", 0.5f,
+            InPlaceChance = Bind("InPlace", "InPlaceChance", 0.5f, 0f, 1f,
                 "Chance (0-1) that a pair meets where one of them stands, instead of walking to a station's " +
                 "placed spot. A furniture-free station set is moved there for the animation and put back " +
                 "afterwards. 0 disables. Single player / alone in the room only.");
             InPlaceStations = Config.Bind("InPlace", "InPlaceStations",
                 "Generic.DoggystyleStation, Generic.LegUpStation, Generic.MacroStation, Generic.ProneMacroStation, FloorStation, CarpetStation",
                 "Comma-separated station set names (partial match, case-insensitive) that may be used in-place. " +
-                "Only list poses that don't need furniture (couch, table, bed...).");
+                "Only list poses that don't need furniture. Sets whose name mentions furniture (couch, bed, " +
+                "table, chair, wall...) are always skipped, even if listed here.");
+
+            FixOrder(IdleMinSeconds, IdleMaxSeconds);
+            FixOrder(PairMinSeconds, PairMaxSeconds);
+        }
+
+        private ConfigEntry<float> Bind(string section, string key, float value, float min, float max, string description) {
+            var entry = Config.Bind(section, key, value,
+                new ConfigDescription(description, new AcceptableValueRange<float>(min, max)));
+            // The range check lets NaN/Infinity through, so catch those here.
+            if (float.IsNaN(entry.Value) || float.IsInfinity(entry.Value)) {
+                Log.LogWarning($"Config {section}.{key} was not a number; reset to {value}.");
+                entry.Value = value;
+            }
+            return entry;
+        }
+
+        /// <summary>A shortest/longest pair edited by hand into the wrong order: raise the longest to match.</summary>
+        private static void FixOrder(ConfigEntry<float> min, ConfigEntry<float> max) {
+            if (min.Value > max.Value) {
+                Log.LogWarning($"Config {min.Definition.Key} ({min.Value}) was above {max.Definition.Key} ({max.Value}); " +
+                               $"set {max.Definition.Key} to {min.Value}.");
+                max.Value = min.Value;
+            }
         }
     }
 }
