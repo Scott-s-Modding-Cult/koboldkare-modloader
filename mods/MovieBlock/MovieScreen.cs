@@ -18,7 +18,7 @@ namespace MovieBlock {
     /// (F7) the cursor is free and player controls are off, so the canvas can be clicked and typed into.
     /// Only the local player sees it; a map load removes it.
     /// </summary>
-    internal class MovieScreen : MonoBehaviour {
+    internal partial class MovieScreen : MonoBehaviour {
         public static MovieScreen Instance { get; private set; }
 
         // Canvas units (1 unit = Size / W metres).
@@ -60,7 +60,7 @@ namespace MovieBlock {
         private Canvas canvas;
         private RectTransform root;
         private TMP_InputField input;
-        private PanelButton sourceButton, sortButton, followButton, prevPageButton, nextPageButton;
+        private PanelButton sourceButton, sortButton, optionsButton, prevPageButton, nextPageButton;
         private TextMeshProUGUI pageLabel, statusText, hintText, bannerText;
         private RectTransform banner;
         private RectTransform browseView, playerView;
@@ -165,6 +165,16 @@ namespace MovieBlock {
             return true;
         }
 
+        /// <summary>Show or hide AI-generated posts, and search again if the screen is open.</summary>
+        public static void SetShowAI(bool show) {
+            MovieBlockPlugin.ShowAI.Value = show;
+            if (Instance != null) {
+                Instance.RefreshOptions();
+                Instance.RefreshButtons();
+                Instance.Search(true);
+            }
+        }
+
         public static void Close() {
             if (Instance != null) {
                 Destroy(Instance.gameObject);
@@ -227,10 +237,10 @@ namespace MovieBlock {
             BuildFrame();
 
             // Accent rim + screen background.
-            AddImage(root, Theme.PanelSprite, new Color(Theme.Accent.r, Theme.Accent.g, Theme.Accent.b, 0.55f));
+            rimImage = AddImage(root, Theme.PanelSprite, new Color(Theme.Accent.r, Theme.Accent.g, Theme.Accent.b, 0.55f));
             var screen = NewRect("Screen", root);
             Stretch(screen, 5f, 5f, 5f, 5f);
-            AddImage(screen, Theme.PanelSprite, ScreenBg);
+            screenBgImage = AddImage(screen, Theme.PanelSprite, ScreenBg);
 
             BuildTopBar(screen);
             BuildStatusBar(screen);
@@ -244,6 +254,11 @@ namespace MovieBlock {
             BuildPlayer(playerView);
             playerView.gameObject.SetActive(false);
 
+            optionsView = NewRect("Options", screen);
+            Stretch(optionsView, 0f, BodyY, 0f, 0f);
+            BuildOptions(optionsView);
+            optionsView.gameObject.SetActive(false);
+
             // Shown while the screen isn't in use, so it's obvious how to get back in.
             banner = NewRect("Banner", screen);
             Place(banner, (W - 760f) / 2f, H - 150f, 760f, 80f);
@@ -253,6 +268,13 @@ namespace MovieBlock {
             BuildSuggestions(screen); // last: drawn on top
 
             BuildVideo();
+            try {
+                visuals = new ImmersiveVisuals(transform);
+            } catch (Exception e) {
+                // No usable shader: immersive view stays flat (just bigger) instead of breaking the screen.
+                visuals = null;
+                MovieBlockPlugin.Log.LogWarning("Curved immersive view unavailable: " + e.Message);
+            }
         }
 
         private void BuildFrame() {
@@ -267,6 +289,7 @@ namespace MovieBlock {
             frame.transform.localPosition = new Vector3(0f, 0f, 16f); // canvas faces -Z; +Z is behind it
             frame.transform.localScale = new Vector3(W + 50f, H + 50f, 28f);
             var renderer = frame.GetComponent<Renderer>();
+            frameRenderer = renderer;
             var shader = FindShader("Universal Render Pipeline/Lit", "Universal Render Pipeline/Simple Lit",
                 "Universal Render Pipeline/Unlit", "Standard", "Sprites/Default");
             if (renderer != null && shader != null) {
@@ -309,6 +332,7 @@ namespace MovieBlock {
 
         private void BuildTopBar(RectTransform parent) {
             var bar = NewRect("Top", parent);
+            topBar = bar;
             Place(bar, Pad, Pad, W - Pad * 2f - 10f, TopH);
             float h = TopH, x = 0f;
 
@@ -319,11 +343,8 @@ namespace MovieBlock {
             float right = W - Pad * 2f - 10f;
             right -= h;
             Btn(bar, right, 0f, h, h, null, "ico_x-out", Close, 26f, new Color(0.6f, 0.2f, 0.2f, 0.8f));
-            right -= Gap + 130f;
-            followButton = Btn(bar, right, 0f, 130f, h, "Follow", "ico_pinned", () => {
-                MovieBlockPlugin.Follow.Value = !MovieBlockPlugin.Follow.Value;
-                RefreshButtons();
-            }, 24f);
+            right -= Gap + 160f;
+            optionsButton = Btn(bar, right, 0f, 160f, h, "Options", "ico_gear", ToggleOptions, 24f);
             right -= Gap * 2f + 64f;
             nextPageButton = Btn(bar, right, 0f, 64f, h, ">", null, () => ChangePage(1), 34f);
             right -= 96f;
@@ -339,21 +360,22 @@ namespace MovieBlock {
             input = MakeInput(bar, x, 0f, right - x, h);
         }
 
-        private TMP_InputField MakeInput(RectTransform parent, float x, float y, float w, float h) {
+        private TMP_InputField MakeInput(RectTransform parent, float x, float y, float w, float h,
+                                         string hint = "tags, e.g. kobold solo -male", bool multiline = false) {
+            var align = multiline ? TextAlignmentOptions.TopLeft : TextAlignmentOptions.MidlineLeft;
             var rect = NewRect("Tags", parent);
             Place(rect, x, y, w, h);
             var bg = AddRoleImage(rect, "control", Theme.PanelSprite, new Color(0f, 0f, 0f, 0.55f));
             var area = NewRect("TextArea", rect);
             Stretch(area, 18f, 8f, 18f, 8f);
             area.gameObject.AddComponent<RectMask2D>();
-            var placeholder = AddText(area, "Placeholder", 0f, 0f, 0f, 0f, "tags, e.g. kobold solo -male", 28f, Theme.TextDim,
-                TextAlignmentOptions.MidlineLeft);
+            var placeholder = AddText(area, "Placeholder", 0f, 0f, 0f, 0f, hint, 28f, Theme.TextDim, align);
             Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
-            placeholder.enableWordWrapping = false;
+            placeholder.enableWordWrapping = multiline;
             placeholder.fontStyle = FontStyles.Italic;
-            var text = AddText(area, "Text", 0f, 0f, 0f, 0f, "", 28f, Theme.Text, TextAlignmentOptions.MidlineLeft);
+            var text = AddText(area, "Text", 0f, 0f, 0f, 0f, "", 28f, Theme.Text, align);
             Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
-            text.enableWordWrapping = false;
+            text.enableWordWrapping = multiline;
             text.richText = false;
 
             var field = rect.gameObject.AddComponent<TMP_InputField>();
@@ -365,7 +387,8 @@ namespace MovieBlock {
                 field.fontAsset = Theme.Font;
             }
             field.pointSize = 28f;
-            field.lineType = TMP_InputField.LineType.SingleLine;
+            field.lineType = multiline ? TMP_InputField.LineType.MultiLineNewline : TMP_InputField.LineType.SingleLine;
+            field.characterLimit = multiline ? 4000 : 0;
             field.richText = false;
             field.onFocusSelectAll = false;
             field.restoreOriginalTextOnEscape = false;
@@ -374,6 +397,9 @@ namespace MovieBlock {
             field.caretWidth = 3;
             field.selectionColor = new Color(Theme.Accent.r, Theme.Accent.g, Theme.Accent.b, 0.35f);
             field.navigation = new Navigation { mode = Navigation.Mode.None };
+            if (multiline) {
+                return field;
+            }
             field.onSubmit.AddListener(_ => Search(true));
             field.onValueChanged.AddListener(_ => {
                 acPending = true;
@@ -421,15 +447,18 @@ namespace MovieBlock {
             float videoW = W - Pad * 2f - TagsW - Gap;
             float videoH = bodyH - ControlsH - Pad - Gap;
 
+            normalVideoW = videoW;
+            normalVideoH = videoH;
             videoArea = NewRect("VideoArea", parent);
             Place(videoArea, Pad, 0f, videoW, videoH);
-            AddImage(videoArea, null, Color.black, sliced: false);
+            videoAreaBg = AddImage(videoArea, null, Color.black, sliced: false);
             var videoRect = NewRect("Video", videoArea);
             Stretch(videoRect, 0f, 0f, 0f, 0f);
             videoImage = videoRect.gameObject.AddComponent<RawImage>();
             videoImage.raycastTarget = false;
             videoImage.enabled = false;
             overlayText = AddText(videoArea, "Overlay", 40f, 0f, videoW - 80f, videoH, "", 32f, Theme.Text, TextAlignmentOptions.Center);
+            Stretch(overlayText.rectTransform, 40f, 0f, 40f, 0f);
 
             // Click the picture to play/pause.
             var clickCatcher = NewRect("Click", videoArea);
@@ -438,16 +467,17 @@ namespace MovieBlock {
             var catcherButton = clickCatcher.gameObject.AddComponent<Button>();
             catcherButton.transition = Selectable.Transition.None;
             catcherButton.navigation = new Navigation { mode = Navigation.Mode.None };
-            catcherButton.onClick.AddListener(TogglePlay);
+            catcherButton.onClick.AddListener(OnVideoClicked); // click: play/pause, double-click: immersive
 
             // Tags column.
             var side = NewRect("Side", parent);
+            sidePanel = side;
             Place(side, Pad + videoW + Gap, 0f, TagsW, videoH);
             AddImage(side, Theme.PanelSprite, new Color(0f, 0f, 0f, 0.35f));
             infoText = AddText(side, "Info", 14f, 8f, TagsW - 28f, 64f, "", 22f, Theme.Text, TextAlignmentOptions.TopLeft);
             Btn(side, 14f, 76f, TagsW - 28f, 46f, "Open post in browser", null, () => {
-                if (current >= 0 && current < posts.Count) {
-                    Application.OpenURL(posts[current].PageUrl);
+                if (currentPost != null) {
+                    Application.OpenURL(currentPost.PageUrl);
                 }
             }, 20f);
             AddText(side, "TagsHint", 14f, 128f, TagsW - 28f, 30f, "Click a tag to add it, - to exclude it", 18f, Theme.TextDim,
@@ -474,20 +504,24 @@ namespace MovieBlock {
 
             // Controls row.
             var bar = NewRect("Controls", parent);
+            controlsBar = bar;
             Place(bar, Pad, videoH + Gap, W - Pad * 2f, ControlsH);
+            controlsBg = AddImage(bar, Theme.PanelSprite, Clear); // shows behind the controls in immersive view
             float h = ControlsH, x = 0f;
-            Btn(bar, x, 0f, 130f, h, "Back", null, BackToResults, 26f);
+            ownerOnly.Add(Btn(bar, x, 0f, 130f, h, "Back", null, BackToResults, 26f).Button.gameObject);
             x += 130f + Gap;
-            Btn(bar, x, 0f, 64f, h, "|<", null, () => PlayIndex(current - 1), 26f);
+            ownerOnly.Add(Btn(bar, x, 0f, 64f, h, "|<", null, () => PlayIndex(current - 1), 26f).Button.gameObject);
             x += 64f + Gap;
             playButton = Btn(bar, x, 0f, 120f, h, "Pause", null, TogglePlay, 26f, Theme.TitleBar);
             x += 120f + Gap;
-            Btn(bar, x, 0f, 64f, h, ">|", null, () => PlayIndex(current + 1), 26f);
+            ownerOnly.Add(Btn(bar, x, 0f, 64f, h, ">|", null, () => PlayIndex(current + 1), 26f).Button.gameObject);
             x += 64f + Gap;
-            Btn(bar, x, 0f, 84f, h, "-10s", null, () => SeekBy(-10), 22f);
+            ownerOnly.Add(Btn(bar, x, 0f, 84f, h, "-10s", null, () => SeekBy(-10), 22f).Button.gameObject);
             x += 84f + Gap;
-            Btn(bar, x, 0f, 84f, h, "+10s", null, () => SeekBy(10), 22f);
-            x += 84f + Gap * 2f;
+            ownerOnly.Add(Btn(bar, x, 0f, 84f, h, "+10s", null, () => SeekBy(10), 22f).Button.gameObject);
+            x += 84f + Gap;
+            immersiveButton = Btn(bar, x, 0f, 150f, h, "Immersive", null, () => SetImmersiveView(!immersive), 22f);
+            x += 150f + Gap * 2f;
 
             float rightW = 110f + Gap + 70f + Gap + 150f;
             float seekW = W - Pad * 2f - x - rightW - 170f - Gap * 2f;
@@ -579,10 +613,343 @@ namespace MovieBlock {
             ApplyAudio();
         }
 
+        // ================================================================== immersive view
+
+        private bool immersive;
+        private RectTransform topBar, sidePanel, controlsBar;
+        private Image controlsBg;
+        private PanelButton immersiveButton;
+        private float normalVideoW, normalVideoH;
+        private float lastAspect = 16f / 9f;
+        private float lastVideoClick = -1f;
+        private float lastActivity;
+        private const float ControlsHideAfter = 2.5f;
+
+        public static bool IsImmersive => Instance != null && Instance.immersive;
+
+        /// <summary>For the command: null on success, otherwise why it couldn't.</summary>
+        public static string SetImmersive(bool on) {
+            if (Instance == null) {
+                return "No movie block. Use /movieblock e621 or /movieblock r34.";
+            }
+            if (on && !Instance.playerView.gameObject.activeSelf) {
+                return "Play a video first.";
+            }
+            Instance.SetImmersiveView(on);
+            return null;
+        }
+
+        /// <summary>
+        /// Immersive view: the video fills the whole screen (no search bar, tags or status line), the block grows by
+        /// ImmersiveScale and re-centres in front of you; exiting puts it back where it was. The controls float over the bottom while you move the mouse.
+        /// </summary>
+        private void SetImmersiveView(bool on) {
+            if (on && (playerView == null || !playerView.gameObject.activeSelf)) {
+                return;
+            }
+            if (on == immersive) {
+                return;
+            }
+            immersive = on;
+            topBar.gameObject.SetActive(!on);
+            statusText.gameObject.SetActive(!on);
+            hintText.gameObject.SetActive(!on);
+            sidePanel.gameObject.SetActive(!on);
+            // The curved strip replaces the flat panel, its rim, background and frame.
+            bool curved = on && visuals != null;
+            rimImage.enabled = !curved;
+            screenBgImage.enabled = !curved;
+            videoAreaBg.enabled = !curved;
+            videoImage.color = curved ? Clear : Color.white;
+            if (frameRenderer != null) {
+                frameRenderer.enabled = !curved;
+            }
+            HideSuggestions();
+            if (on) {
+                Stretch(playerView, 0f, 0f, 0f, 0f);
+                Stretch(videoArea, 0f, 0f, 0f, 0f);
+                Place(controlsBar, Pad, H - 10f - ControlsH - Pad * 2f, W - Pad * 2f - 10f, ControlsH);
+                controlsBg.color = new Color(0f, 0f, 0f, 0.7f);
+                lastActivity = Time.unscaledTime;
+            } else {
+                Stretch(playerView, 0f, BodyY, 0f, 0f);
+                Place(videoArea, Pad, 0f, normalVideoW, normalVideoH);
+                Place(controlsBar, Pad, normalVideoH + Gap, W - Pad * 2f, ControlsH);
+                controlsBg.color = Clear;
+                controlsBar.gameObject.SetActive(true);
+            }
+            FitVideo(lastAspect);
+            if (TestCamera == null && !IsRemote) {
+                if (on) {
+                    // The bigger screen re-centres in front of you; exiting puts it back where it was.
+                    var before = (transform.position, transform.rotation);
+                    PlaceInFront();
+                    poseBeforeImmersive = before;
+                } else if (poseBeforeImmersive.HasValue) {
+                    transform.SetPositionAndRotation(poseBeforeImmersive.Value.position, poseBeforeImmersive.Value.rotation);
+                    followMoving = false;
+                }
+            }
+            if (!on) {
+                poseBeforeImmersive = null;
+            }
+            RefreshButtons();
+        }
+
+        private (Vector3 position, Quaternion rotation)? poseBeforeImmersive;
+        private ImmersiveVisuals visuals;
+        private Image rimImage, screenBgImage, videoAreaBg;
+        private Renderer frameRenderer;
+
+        /// <summary>LateUpdate: after the camera has moved, keep the curve, the darkening and the controls in place.</summary>
+        private void LateUpdate() {
+            if (visuals == null) {
+                return;
+            }
+            var cam = TestCamera != null ? TestCamera : Camera.main;
+            bool darken = immersive && MovieBlockPlugin.DarkenSurroundings.Value;
+            visuals.UpdateDarkness(cam, darken ? MovieBlockPlugin.Darkness.Value : 0f);
+
+            // The dark curved canvas covers the whole screen; the video is fitted above a strip for the controls.
+            float screenW = W - 10f, screenH = H - 10f;
+            float stripH = ControlsH + 24f;
+            float availH = screenH - stripH;
+            float vw = screenW, vh = screenW / Mathf.Max(0.1f, lastAspect);
+            if (vh > availH) {
+                vh = availH;
+                vw = availH * lastAspect;
+            }
+            // From behind, show only the dark back of the screen, not the picture mirrored.
+            bool fromBehind = cam != null && Vector3.Dot(cam.transform.position - transform.position, transform.forward) > 0f;
+            bool showVideo = videoImage.enabled && !fromBehind;
+            visuals.UpdateCurve(immersive, showVideo, renderTexture, screenW, screenH, vw, vh, stripH / 2f,
+                MovieBlockPlugin.CurveAngle.Value);
+            if (immersive) {
+                // Controls sit in the strip along the bottom of the curved canvas.
+                Place(controlsBar, Pad, availH + 12f, W - Pad * 2f - 10f, ControlsH);
+            }
+        }
+
+        private void OnVideoClicked() {
+            float now = Time.unscaledTime;
+            if (now - lastVideoClick < 0.35f) {
+                // Double-click: undo the first click's play/pause and switch views instead.
+                lastVideoClick = -1f;
+                TogglePlay();
+                SetImmersiveView(!immersive);
+                return;
+            }
+            lastVideoClick = now;
+            TogglePlay();
+        }
+
+        /// <summary>Per frame: in immersive view, show the controls only while the mouse is in use.</summary>
+        private void UpdateImmersiveControls() {
+            if (!immersive) {
+                return;
+            }
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            if (focused && mouse != null && (mouse.delta.ReadValue().sqrMagnitude > 0.5f || mouse.leftButton.isPressed)) {
+                lastActivity = Time.unscaledTime;
+            }
+            bool show = focused && Time.unscaledTime - lastActivity < ControlsHideAfter;
+            if (controlsBar.gameObject.activeSelf != show) {
+                controlsBar.gameObject.SetActive(show);
+            }
+        }
+
+        // ================================================================== options view
+
+        private const int MaxBlacklistTags = 100;
+
+        private RectTransform optionsView;
+        private TMP_InputField blacklistInput;
+        private TextMeshProUGUI blacklistCount;
+        private readonly List<Action> optionRefreshers = new List<Action>();
+        private bool optionsDirty;      // something that changes search results was changed
+        private bool optionsFromPlayer;
+        private bool pausedForOptions;
+
+        private void BuildOptions(RectTransform parent) {
+            const float leftW = 960f, rowH = 60f;
+            float rightX = Pad + leftW + 30f;
+            float rightW = W - 10f - rightX - Pad;
+
+            // ---- left: tag blacklist (like the sites' own blacklist page)
+            var title = AddText(parent, "BlacklistTitle", Pad, 4f, leftW, 46f, "<b>Tag blacklist</b>", 32f, Theme.Text,
+                TextAlignmentOptions.MidlineLeft);
+            title.enableWordWrapping = false;
+            AddText(parent, "BlacklistHelp", Pad, 52f, leftW, 64f,
+                $"Any post with a blacklisted tag is hidden. Separate tags with spaces, e.g. <noparse>vrchat gore scat</noparse>. " +
+                $"Max {MaxBlacklistTags} tags.", 22f, Theme.TextDim, TextAlignmentOptions.TopLeft);
+            blacklistInput = MakeInput(parent, Pad, 122f, leftW, 430f, "No tags blacklisted", multiline: true);
+            blacklistInput.onValueChanged.AddListener(_ => UpdateBlacklistCount());
+            blacklistCount = AddText(parent, "Count", Pad, 556f, leftW, 34f, "", 20f, Theme.TextDim, TextAlignmentOptions.MidlineRight);
+            AddText(parent, "BlacklistNote", Pad, 556f, leftW - 180f, 80f,
+                "Content involving minors is always hidden. Your blacklist on the e621 or rule34 website doesn't carry over: " +
+                "the sites only apply it in their own pages, not to the API this screen uses.", 20f, Theme.TextDim,
+                TextAlignmentOptions.TopLeft);
+            Btn(parent, Pad, 650f, 220f, 70f, "Save", "ico_save", () => CloseOptions(save: true), 26f, Theme.TitleBar);
+            Btn(parent, Pad + 220f + Gap, 650f, 160f, 70f, "Clear", "ico_trashcan", () => blacklistInput.text = "", 24f);
+            Btn(parent, Pad + 380f + Gap * 2f, 650f, 160f, 70f, "Cancel", null, () => CloseOptions(save: false), 24f,
+                new Color(Theme.Cancel.r, Theme.Cancel.g, Theme.Cancel.b, 0.6f));
+
+            AddText(parent, "MultiplayerTitle", Pad, 736f, leftW, 40f, "<b>Multiplayer</b>  <size=20><color=#" +
+                Theme.Hex(Theme.TextDim) + ">(online rooms, players with Movie Block)</color></size>", 26f, Theme.Text, TextAlignmentOptions.MidlineLeft);
+            float half = (leftW - Gap) / 2f;
+            ToggleRow(parent, Pad, 780f, half, "Share my screen", MovieBlockPlugin.Share, affectsSearch: false);
+            ToggleRow(parent, Pad + half + Gap, 780f, half, "Show others' screens", MovieBlockPlugin.ShowOthers, affectsSearch: false);
+
+            // ---- right: the screen's other settings (they apply straight away)
+            AddText(parent, "SettingsTitle", rightX, 4f, rightW, 46f, "<b>Settings</b>", 32f, Theme.Text, TextAlignmentOptions.MidlineLeft);
+            float y = 58f;
+            ToggleRow(parent, rightX, y, rightW, "Show AI-generated content", MovieBlockPlugin.ShowAI, affectsSearch: true);
+            y += rowH + Gap;
+            ToggleRow(parent, rightX, y, rightW, "Loop videos", MovieBlockPlugin.Loop, affectsSearch: false);
+            y += rowH + Gap;
+            ToggleRow(parent, rightX, y, rightW, "Play next when a video ends", MovieBlockPlugin.AutoNext, affectsSearch: false);
+            y += rowH + Gap;
+            ToggleRow(parent, rightX, y, rightW, "3D sound from the screen", MovieBlockPlugin.SpatialAudio, affectsSearch: false);
+            y += rowH + Gap;
+            ToggleRow(parent, rightX, y, rightW, "Follow me", MovieBlockPlugin.Follow, affectsSearch: false);
+            y += rowH + Gap;
+            ToggleRow(parent, rightX, y, rightW, "Turn towards me", MovieBlockPlugin.FaceCamera, affectsSearch: false);
+            y += rowH + Gap;
+            ToggleRow(parent, rightX, y, rightW, "Darken around immersive view", MovieBlockPlugin.DarkenSurroundings, affectsSearch: false);
+            y += rowH + Gap * 3f;
+
+            AddText(parent, "QualityTitle", rightX, y, rightW, 36f, "e621 video quality", 24f, Theme.Text, TextAlignmentOptions.MidlineLeft);
+            y += 40f;
+            float qw = (rightW - Gap * 2f) / 3f;
+            string[] qualities = { "480p", "720p", "original" };
+            for (int i = 0; i < qualities.Length; i++) {
+                string q = qualities[i];
+                var b = Btn(parent, rightX + i * (qw + Gap), y, qw, rowH, i == 2 ? "Original" : q, null, () => {
+                    if (MovieBlockPlugin.Quality.Value != q) {
+                        MovieBlockPlugin.Quality.Value = q;
+                        optionsDirty = true;
+                    }
+                    RefreshOptions();
+                }, 24f, CellBg);
+                optionRefreshers.Add(() => b.Background.color = MovieBlockPlugin.Quality.Value == q
+                    ? new Color(Theme.Accent.r, Theme.Accent.g, Theme.Accent.b, 0.45f) : CellBg);
+            }
+            y += rowH + Gap * 2f;
+            AddText(parent, "SettingsNote", rightX, y, rightW, 60f,
+                "Settings save as you change them. The search runs again when you leave this page if the results would change.",
+                20f, Theme.TextDim, TextAlignmentOptions.TopLeft);
+        }
+
+        private void ToggleRow(RectTransform parent, float x, float y, float w, string label,
+                               BepInEx.Configuration.ConfigEntry<bool> entry, bool affectsSearch) {
+            PanelButton row = null;
+            row = Btn(parent, x, y, w, 60f, label, null, () => {
+                entry.Value = !entry.Value;
+                if (affectsSearch) {
+                    optionsDirty = true;
+                }
+                RefreshOptions();
+            }, 24f, CellBg);
+            row.Label.alignment = TextAlignmentOptions.MidlineLeft;
+            Place(row.Label.rectTransform, 18f, 0f, w - 130f, 60f);
+            var state = AddText((RectTransform)row.Button.transform, "State", w - 112f, 0f, 96f, 60f, "", 22f, Theme.Text,
+                TextAlignmentOptions.MidlineRight);
+            optionRefreshers.Add(() => {
+                bool on = entry.Value;
+                row.Background.color = on ? new Color(Theme.Accent.r, Theme.Accent.g, Theme.Accent.b, 0.45f) : CellBg;
+                state.text = on ? "<b>On</b>" : "Off";
+            });
+        }
+
+        private void RefreshOptions() {
+            foreach (var refresh in optionRefreshers) {
+                refresh();
+            }
+        }
+
+        private void UpdateBlacklistCount() {
+            int count = SplitTags(blacklistInput.text).Count;
+            blacklistCount.text = count > MaxBlacklistTags
+                ? $"{Theme.Red}{count} / {MaxBlacklistTags} tags (extra ones are dropped)</color>"
+                : $"{count} / {MaxBlacklistTags} tags";
+        }
+
+        private static List<string> SplitTags(string text) =>
+            (text ?? "").Split(new[] { ' ', ',', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(t => t.Trim().TrimStart('-').ToLowerInvariant())
+                        .Where(t => t.Length > 0)
+                        .Distinct()
+                        .ToList();
+
+        private void ToggleOptions() {
+            if (optionsView.gameObject.activeSelf) {
+                CloseOptions(save: true);
+            } else {
+                OpenOptions();
+            }
+        }
+
+        private void OpenOptions() {
+            SetImmersiveView(false);
+            optionsFromPlayer = playerView.gameObject.activeSelf;
+            pausedForOptions = false;
+            if (optionsFromPlayer && player != null && player.isPlaying) {
+                player.Pause();
+                pausedForOptions = true;
+            }
+            HideSuggestions();
+            browseView.gameObject.SetActive(false);
+            playerView.gameObject.SetActive(false);
+            optionsView.gameObject.SetActive(true);
+            blacklistInput.SetTextWithoutNotify(string.Join(" ", SplitTags(MovieBlockPlugin.Blacklist.Value).ToArray()));
+            UpdateBlacklistCount();
+            optionsDirty = false;
+            RefreshOptions();
+            RefreshButtons();
+        }
+
+        private void CloseOptions(bool save) {
+            if (save) {
+                string list = string.Join(" ", SplitTags(blacklistInput.text).Take(MaxBlacklistTags).ToArray());
+                if (list != string.Join(" ", SplitTags(MovieBlockPlugin.Blacklist.Value).ToArray())) {
+                    MovieBlockPlugin.Blacklist.Value = list;
+                    optionsDirty = true;
+                }
+            }
+            if (blacklistInput.isFocused) {
+                blacklistInput.DeactivateInputField();
+            }
+            optionsView.gameObject.SetActive(false);
+            if (optionsDirty) {
+                optionsDirty = false;
+                Search(true); // results change: back to the grid with a fresh search
+            } else if (optionsFromPlayer) {
+                playerView.gameObject.SetActive(true);
+                if (pausedForOptions && player != null) {
+                    player.Play();
+                }
+            } else {
+                browseView.gameObject.SetActive(true);
+            }
+            RefreshButtons();
+        }
+
         // ================================================================== placement
 
+        private float shownSize;
+
+        /// <summary>Screen width in metres right now: bigger in immersive view.</summary>
+        private float TargetSize =>
+            (IsRemote ? Mathf.Clamp(netSize, 0.5f, 15f) : Mathf.Clamp(MovieBlockPlugin.Size.Value, 0.5f, 10f)) *
+            (immersive ? Mathf.Clamp(MovieBlockPlugin.ImmersiveScale.Value, 1f, 4f) : 1f);
+
         private void ApplySize() {
-            float scale = Mathf.Clamp(MovieBlockPlugin.Size.Value, 0.5f, 10f) / W;
+            float target = TargetSize;
+            shownSize = shownSize <= 0f ? target : Mathf.Lerp(shownSize, target, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
+            if (Mathf.Abs(shownSize - target) < 0.001f) {
+                shownSize = target;
+            }
+            float scale = shownSize / W;
             transform.localScale = new Vector3(scale, scale, scale);
         }
 
@@ -602,7 +969,7 @@ namespace MovieBlock {
             forward.Normalize();
             position = body.position + forward * Mathf.Clamp(MovieBlockPlugin.Distance.Value, 0.5f, 20f);
             float eye = cam != null ? cam.transform.position.y : body.position.y + 0.5f;
-            position.y = Mathf.Max(eye, body.position.y + MovieBlockPlugin.Size.Value * 0.3f);
+            position.y = Mathf.Max(eye, body.position.y + TargetSize * 0.3f);
             return true;
         }
 
@@ -613,6 +980,7 @@ namespace MovieBlock {
             transform.position = position;
             transform.rotation = FacingRotation(position);
             followMoving = false;
+            poseBeforeImmersive = null; // moved on purpose: exiting immersive view leaves it here
         }
 
         private static Quaternion FacingRotation(Vector3 position) {
@@ -642,6 +1010,7 @@ namespace MovieBlock {
                 }
                 if (far || offView) {
                     followMoving = true;
+                    poseBeforeImmersive = null; // it followed you; the old spot is stale
                 }
                 if (followMoving) {
                     followTarget = ideal;
@@ -671,6 +1040,11 @@ namespace MovieBlock {
                 return;
             }
             focused = on;
+            if (on) {
+                FocusedScreen = this;
+            } else if (FocusedScreen == this) {
+                FocusedScreen = null;
+            }
             var controls = GameManager.GetPlayerControls();
             if (on) {
                 GameManager.SetControlsActive(false);
@@ -711,9 +1085,25 @@ namespace MovieBlock {
                     pendingFocus = false;
                 }
             }
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            bool clicked = mouse != null && mouse.leftButton.wasPressedThisFrame;
+            var cam = Camera.main;
+
             if (!focused) {
+                if (FocusedScreen != null && FocusedScreen != this) {
+                    aimed = false; // another screen has the mouse
+                    return;
+                }
+                // Playing: is the crosshair (screen centre) on the screen? Then a click starts using it.
+                aimed = !pendingFocus && cam != null && Cursor.lockState == CursorLockMode.Locked && MenusClosed() &&
+                        HitsScreen(cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f)), ClickReach);
+                if (aimed && clicked) {
+                    SetFocus(true);
+                    focusedFrame = Time.frameCount;
+                }
                 return;
             }
+            aimed = false;
             // Another menu (pause, mod panel...) took over: step aside and let it own the cursor.
             if (!MenusClosed()) {
                 SetFocus(false);
@@ -724,8 +1114,28 @@ namespace MovieBlock {
                 SetFocus(false);
                 return;
             }
+            // Clicking anywhere off the screen goes back to the game.
+            if (clicked && Time.frameCount != focusedFrame && cam != null &&
+                !HitsScreen(cam.ScreenPointToRay(mouse.position.ReadValue()), float.MaxValue)) {
+                SetFocus(false);
+                return;
+            }
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+        }
+
+        private const float ClickReach = 12f;
+        private bool aimed;
+        private int focusedFrame = -1;
+
+        /// <summary>True if <paramref name="ray"/> meets the screen's rectangle within <paramref name="maxDistance"/> metres.</summary>
+        private bool HitsScreen(Ray ray, float maxDistance) {
+            var plane = new Plane(transform.forward, transform.position);
+            if (!plane.Raycast(ray, out float distance) || distance > maxDistance) {
+                return false;
+            }
+            Vector3 local = transform.InverseTransformPoint(ray.GetPoint(distance)); // canvas units, pivot in the middle
+            return Mathf.Abs(local.x) <= W / 2f + 25f && Mathf.Abs(local.y) <= H / 2f + 25f; // + the frame's border
         }
 
         private void RefreshHint() {
@@ -733,10 +1143,12 @@ namespace MovieBlock {
                 return;
             }
             string key = MovieBlockPlugin.FocusKey.Value;
-            hintText.text = focused ? $"{key} or Esc: back to the game" : $"{key}: use the screen";
+            hintText.text = focused ? $"Esc, {key} or click away: back to the game" : $"Click or {key}: use the screen";
             if (banner != null) {
-                banner.gameObject.SetActive(!focused && TestCamera == null);
-                bannerText.text = pendingFocus ? "Opening..." : $"Press <b>{key}</b> to use the screen";
+                banner.gameObject.SetActive(!focused && !immersive && TestCamera == null);
+                bannerText.text = pendingFocus ? "Opening..."
+                    : aimed ? "<b>Click</b> to use the screen"
+                    : $"Click the screen or press <b>{key}</b> to use it";
             }
         }
 
@@ -997,6 +1409,10 @@ namespace MovieBlock {
         // ================================================================== playing
 
         private void ShowPlayer(bool show) {
+            if (!show) {
+                SetImmersiveView(false);
+            }
+            optionsView.gameObject.SetActive(false);
             browseView.gameObject.SetActive(!show);
             playerView.gameObject.SetActive(show);
             if (!show) {
@@ -1011,17 +1427,25 @@ namespace MovieBlock {
             if (index < 0 || index >= posts.Count) {
                 return;
             }
+            current = index;
+            PlayPost(posts[index], $"{index + 1} of {posts.Count} on page {page + 1}");
+        }
+
+        private Post currentPost;
+
+        /// <summary>Shows the player and downloads/plays <paramref name="post"/>.</summary>
+        private void PlayPost(Post post, string subtitle) {
             HideSuggestions();
             StopVideo();
-            current = index;
-            var post = posts[index];
+            currentPost = post;
+            optionsView.gameObject.SetActive(false);
             browseView.gameObject.SetActive(false);
             playerView.gameObject.SetActive(true);
             BuildTags(post);
             string size = post.Width > 0 ? $"   {post.Width}x{post.Height}" : "";
             string duration = post.Duration > 0 ? "   " + FormatTime(post.Duration) : "";
             infoText.text = $"<b>#{post.Id}</b>   score <color=#ffd75e>{Signed(post.Score)}</color>{duration}{size}\n" +
-                            $"<color=#{Theme.Hex(Theme.TextDim)}>{index + 1} of {posts.Count} on page {page + 1}</color>";
+                            $"<color=#{Theme.Hex(Theme.TextDim)}>{subtitle}</color>";
             SetStatus($"{source.Title} #{post.Id}");
 
             string path = VideoCache.PathFor(source.Key, post);
@@ -1051,6 +1475,10 @@ namespace MovieBlock {
         private void BuildTags(Post post) {
             for (int i = tagContent.childCount - 1; i >= 0; i--) {
                 Destroy(tagContent.GetChild(i).gameObject);
+            }
+            if (IsRemote) {
+                BuildTagLabels(post); // someone else's screen: tags are just shown, not clickable
+                return;
             }
             float w = TagsW - 16f;
             float y = 0f;
@@ -1114,11 +1542,15 @@ namespace MovieBlock {
             }
             vp.targetTexture = renderTexture;
             videoImage.texture = renderTexture;
-            FitVideo(w / (float)h);
+            lastAspect = w / (float)h;
+            FitVideo(lastAspect);
             videoImage.enabled = true;
             overlayText.text = "";
             ApplyAudio();
             vp.Play();
+            if (IsRemote) {
+                OnRemotePrepared(); // jump to the owner's time, pause if they're paused
+            }
             RefreshButtons();
         }
 
@@ -1146,7 +1578,7 @@ namespace MovieBlock {
         }
 
         private void OnLoopPoint(VideoPlayer vp) {
-            if (this == null || MovieBlockPlugin.Loop.Value || !MovieBlockPlugin.AutoNext.Value) {
+            if (this == null || IsRemote || MovieBlockPlugin.Loop.Value || !MovieBlockPlugin.AutoNext.Value) {
                 return;
             }
             if (current + 1 < posts.Count) {
@@ -1155,6 +1587,9 @@ namespace MovieBlock {
         }
 
         private void TogglePlay() {
+            if (IsRemote) {
+                return; // the owner decides; viewers follow
+            }
             if (player == null || !player.isPrepared) {
                 return;
             }
@@ -1167,6 +1602,9 @@ namespace MovieBlock {
         }
 
         private void SeekBy(double seconds) {
+            if (IsRemote) {
+                return;
+            }
             if (player == null || !player.isPrepared || !player.canSetTime) {
                 return;
             }
@@ -1175,6 +1613,9 @@ namespace MovieBlock {
         }
 
         private void SeekTo(float t) {
+            if (IsRemote) {
+                return;
+            }
             if (player == null || !player.isPrepared || !player.canSetTime) {
                 return;
             }
@@ -1215,11 +1656,16 @@ namespace MovieBlock {
                     canvas.worldCamera = Camera.main;
                 }
                 ApplySize();
-                UpdatePlacement();
+                if (IsRemote) {
+                    UpdateRemote(); // placed and timed by its owner
+                } else {
+                    UpdatePlacement();
+                }
                 UpdateFocus();
             }
             UpdateAutocomplete();
             PumpThumbs();
+            UpdateImmersiveControls();
             ApplyAudio();
             if (player != null && player.isLooping != MovieBlockPlugin.Loop.Value) {
                 player.isLooping = MovieBlockPlugin.Loop.Value;
@@ -1266,7 +1712,9 @@ namespace MovieBlock {
             pageLabel.text = (page + 1).ToString();
             prevPageButton.Interactable = page > 0;
             nextPageButton.Interactable = !lastPage;
-            SetToggleLook(followButton, MovieBlockPlugin.Follow.Value);
+            SetToggleLook(optionsButton, optionsView != null && optionsView.gameObject.activeSelf);
+            SetToggleLook(immersiveButton, immersive);
+            immersiveButton.SetLabel(immersive ? "Exit immersive" : "Immersive");
             SetToggleLook(loopButton, MovieBlockPlugin.Loop.Value);
             SetToggleLook(muteButton, !muted);
             playButton.SetLabel(player != null && player.isPlaying ? "Pause" : "Play");
@@ -1313,6 +1761,7 @@ namespace MovieBlock {
                 }
             }
             download?.Cancel();
+            visuals?.Destroy();
             if (renderTexture != null) {
                 renderTexture.Release();
                 Destroy(renderTexture);
@@ -1322,8 +1771,15 @@ namespace MovieBlock {
                     Destroy(t);
                 }
             }
+            if (FocusedScreen == this) {
+                FocusedScreen = null;
+            }
             if (Instance == this) {
                 Instance = null;
+                MovieNet.SendClosed();
+            }
+            if (IsRemote && Remotes.TryGetValue(remoteActor, out var mine) && mine == this) {
+                Remotes.Remove(remoteActor);
             }
         }
     }

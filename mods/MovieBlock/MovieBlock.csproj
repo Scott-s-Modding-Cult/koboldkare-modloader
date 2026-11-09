@@ -5,7 +5,7 @@
     <RootNamespace>MovieBlock</RootNamespace>
     <Version>1.0.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>A floating 3D video screen that browses e621 or rule34.xxx by tag and plays the videos, with 3D sound. Commands: /movieblock e621, /movieblock r34. F7 to use the screen. Needs UnityEngine.VideoModule.dll from Unity 2021.3.45f2 in BepInEx\unstripped_corlib (see README). Only you see the screen.</Description>
+    <Description>A floating 3D video screen that browses e621 or rule34.xxx by tag and plays the videos, with 3D sound. Commands: /movieblock e621, /movieblock r34. F7 to use the screen. Needs UnityEngine.VideoModule.dll from Unity 2021.3.45f2 in BepInEx\unstripped_corlib (see README). Share your screen with other players who have the mod (/movieblock share, /movieblock others), synced through the game's Photon room.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" />
@@ -18,6 +18,5 @@
     <!-- HTTP goes through Unity's native web requests: Mono's TLS stack fails in this game. -->
     <Reference Include="$(ManagedDir)\UnityEngine.UnityWebRequestModule.dll" Private="false" />
     <Reference Include="$(ManagedDir)\UnityEngine.ImageConversionModule.dll" Private="false" />
-    <Reference Include="$(ManagedDir)\Newtonsoft.Json.dll" Private="false" />
-  </ItemGroup>
+    <Reference Include="$(ManagedDir)\Newtonsoft.Json.dll" Private="false" />  </ItemGroup>
 </Project>

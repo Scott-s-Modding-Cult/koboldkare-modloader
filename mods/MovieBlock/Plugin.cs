@@ -23,6 +23,10 @@ namespace MovieBlock {
 
         internal static ConfigEntry<string> FocusKey;
         internal static ConfigEntry<float> Size;
+        internal static ConfigEntry<float> ImmersiveScale;
+        internal static ConfigEntry<float> CurveAngle;
+        internal static ConfigEntry<bool> DarkenSurroundings;
+        internal static ConfigEntry<float> Darkness;
         internal static ConfigEntry<float> Distance;
         internal static ConfigEntry<bool> FaceCamera;
         internal static ConfigEntry<bool> Follow;
@@ -33,6 +37,9 @@ namespace MovieBlock {
         internal static ConfigEntry<string> Quality;
         internal static ConfigEntry<int> MaxCacheMB;
         internal static ConfigEntry<string> Blacklist;
+        internal static ConfigEntry<bool> ShowAI;
+        internal static ConfigEntry<bool> Share;
+        internal static ConfigEntry<bool> ShowOthers;
         internal static ConfigEntry<string> E621DefaultTags;
         internal static ConfigEntry<string> E621User;
         internal static ConfigEntry<string> E621ApiKey;
@@ -46,7 +53,7 @@ namespace MovieBlock {
 
         private static readonly string[] Subcommands = {
             "e621", "r34", "close", "here", "focus", "follow", "search", "quality", "volume", "size", "distance",
-            "r34key", "e621key", "cache", "status",
+            "ai", "share", "others", "immersive", "curve", "darken", "r34key", "e621key", "cache", "status",
         };
 
         private void Awake() {
@@ -55,6 +62,13 @@ namespace MovieBlock {
             FocusKey = Config.Bind("General", "FocusKey", "F7",
                 "Switches between using the screen (free cursor) and playing. Any UnityEngine.InputSystem.Key name.");
             Size = Config.Bind("General", "Size", 2.4f, new ConfigDescription("Screen width in metres.", new AcceptableValueRange<float>(0.5f, 10f)));
+            ImmersiveScale = Config.Bind("General", "ImmersiveScale", 1.8f,
+                new ConfigDescription("How much bigger the screen gets in immersive view.", new AcceptableValueRange<float>(1f, 4f)));
+            CurveAngle = Config.Bind("General", "CurveAngle", 60f,
+                new ConfigDescription("How far the immersive screen curves around you, in degrees. 0 = flat.", new AcceptableValueRange<float>(0f, 150f)));
+            DarkenSurroundings = Config.Bind("General", "DarkenSurroundings", true, "Dim the world around you in immersive view.");
+            Darkness = Config.Bind("General", "Darkness", 0.85f,
+                new ConfigDescription("How dark the world gets in immersive view (0-1).", new AcceptableValueRange<float>(0f, 1f)));
             Distance = Config.Bind("General", "Distance", 2.5f,
                 new ConfigDescription("How far in front of you the screen appears, in metres.", new AcceptableValueRange<float>(0.5f, 20f)));
             FaceCamera = Config.Bind("General", "FaceCamera", true, "Keep the screen turned towards you.");
@@ -69,6 +83,13 @@ namespace MovieBlock {
                 "Downloaded videos are kept in %TEMP%\\KoboldKare-MovieBlock up to this size, oldest removed first.");
             Blacklist = Config.Bind("Search", "Blacklist", "gore scat watersports",
                 "Tags never shown (space separated). Content involving minors is always excluded.");
+            Share = Config.Bind("Multiplayer", "ShareMyScreen", false,
+                "Let other players in the room who have the mod (and ShowOthersScreens on) see your screen and what it plays. " +
+                "Your searching and Options stay private.");
+            ShowOthers = Config.Bind("Multiplayer", "ShowOthersScreens", false,
+                "Show screens other players share. Your own blacklist, AI setting and the minors filter still apply to them.");
+            ShowAI = Config.Bind("Search", "ShowAIContent", false,
+                "Show AI-generated and AI-assisted posts (tagged ai_generated / ai_assisted). Off hides them.");
             E621DefaultTags = Config.Bind("e621", "DefaultTags", "kobold", "Search run when the screen opens on e621.");
             E621User = Config.Bind("e621", "Username", "", "Optional e621 login (with ApiKey) so your account's settings apply.");
             E621ApiKey = Config.Bind("e621", "ApiKey", "", "Optional e621 API key (e621 > Account > Manage API Access).");
@@ -109,6 +130,7 @@ namespace MovieBlock {
 
         private static void Tick() {
             Net.Pump();
+            MovieNet.Tick();
             RateLimit.Pump(Time.unscaledTime);
             if (!MovieScreen.Exists) {
                 return;
@@ -159,6 +181,52 @@ namespace MovieBlock {
                         ctx.Fail("No movie block. Use /movieblock e621 or /movieblock r34.");
                     }
                     MovieScreen.ToggleFocus();
+                    break;
+                case "immersive":
+                case "big": {
+                    bool on = rest.Length == 0 ? !MovieScreen.IsImmersive : rest == "on" || rest == "1" || rest == "true";
+                    string problem = MovieScreen.SetImmersive(on);
+                    if (problem != null) {
+                        ctx.Fail(problem);
+                    }
+                    ctx.Reply(on ? "Immersive view on. Double-click the video or /movieblock immersive off to leave it." : "Immersive view off.");
+                    break;
+                }
+                case "curve":
+                    if (!float.TryParse(rest, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float curve)) {
+                        ctx.Fail($"Curve is {CurveAngle.Value:0} degrees. Use /movieblock curve <0-150> (0 = flat).");
+                    }
+                    CurveAngle.Value = Mathf.Clamp(curve, 0f, 150f);
+                    ctx.Reply($"Immersive curve {CurveAngle.Value:0} degrees.");
+                    break;
+                case "darken":
+                    if (float.TryParse(rest, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dark)) {
+                        Darkness.Value = Mathf.Clamp01(dark > 1f ? dark / 100f : dark);
+                        DarkenSurroundings.Value = Darkness.Value > 0f;
+                    } else {
+                        DarkenSurroundings.Value = rest.Length == 0 ? !DarkenSurroundings.Value : rest == "on" || rest == "1" || rest == "true";
+                    }
+                    ctx.Reply(DarkenSurroundings.Value ? $"Immersive view darkens the world ({Darkness.Value * 100f:0}%)." : "Immersive view no longer darkens the world.");
+                    break;
+                case "share":
+                    Share.Value = rest.Length == 0 ? !Share.Value : rest == "on" || rest == "1" || rest == "true";
+                    ctx.Reply(Share.Value
+                        ? "Your screen is shared with players in the room who have Movie Block and show shared screens."
+                        : "Your screen is private again.");
+                    if (Share.Value && !MovieNet.Available) {
+                        ctx.Reply("(Sharing starts once you're in an online room.)");
+                    }
+                    break;
+                case "others":
+                    ShowOthers.Value = rest.Length == 0 ? !ShowOthers.Value : rest == "on" || rest == "1" || rest == "true";
+                    if (!ShowOthers.Value) {
+                        MovieScreen.RemoveAllRemotes();
+                    }
+                    ctx.Reply(ShowOthers.Value ? "Showing other players' shared screens." : "Hiding other players' screens.");
+                    break;
+                case "ai":
+                    MovieScreen.SetShowAI(rest.Length == 0 ? !ShowAI.Value : rest == "on" || rest == "1" || rest == "true" || rest == "show");
+                    ctx.Reply($"AI-generated content {(ShowAI.Value ? "shown" : "hidden")}.");
                     break;
                 case "follow":
                     Follow.Value = rest.Length == 0 ? !Follow.Value : rest == "on" || rest == "1" || rest == "true";
@@ -230,7 +298,7 @@ namespace MovieBlock {
                 default:
                     ctx.Reply("<b>/movieblock</b> e621 | r34   open the screen in front of you (or switch site)");
                     ctx.Reply($"  {FocusKey.Value} (or /movieblock focus)   use the screen / back to the game");
-                    ctx.Reply("  here | close | follow [on|off] | search <tags> | volume 0-100 | size <m> | distance <m>");
+                    ctx.Reply("  here | close | follow [on|off] | ai [on|off] | share [on|off] | others [on|off] | immersive [on|off] | curve <deg> | darken [on|off|0-100] | search <tags> | volume 0-100 | size <m> | distance <m>");
                     ctx.Reply("  quality 480p|720p|original | r34key <api key text> | e621key <user> <key> | cache [clear]");
                     if (!videoModuleOk) {
                         ctx.Reply("<color=#ff8a80>" + VideoModuleHelp + "</color>");
@@ -246,7 +314,12 @@ namespace MovieBlock {
             if (!MovieScreen.Open(source, focus: true)) {
                 ctx.Fail("Load into a map first.");
             }
-            ctx.Reply($"Movie block: {source.Title}. {FocusKey.Value} switches between the screen and the game. Only you can see it.");
+            ctx.Reply($"Movie block: {source.Title}. {FocusKey.Value} switches between the screen and the game.");
+            if (MovieNet.Available) {
+                ctx.Reply(Share.Value
+                    ? "It's shared with other players in the room (/movieblock share off to keep it private)."
+                    : "Only you can see it. /movieblock share on shows it to others in the room who have the mod.");
+            }
         }
 
         private static void SetR34Key(CommandContext ctx, string text) {
@@ -299,9 +372,24 @@ namespace MovieBlock {
 
             page.Header("Screen", "ico_gear");
             page.Slider("Width", Size, 0.5f, 6f, 0.1f, v => $"{v:0.0} m");
+            page.Slider("Immersive view size", ImmersiveScale, 1f, 4f, 0.1f, v => $"{v:0.0}x");
+            page.Slider("Immersive curve", CurveAngle, 0f, 150f, 5f, v => v < 1f ? "flat" : $"{v:0}°");
+            page.Toggle("Darken the world in immersive view", DarkenSurroundings);
+            page.Slider("Darkness", Darkness, 0f, 1f, 0.05f, v => $"{v * 100f:0}%");
             page.Slider("Distance", Distance, 0.5f, 8f, 0.25f, v => $"{v:0.##} m");
             page.Toggle("Turn towards me", FaceCamera);
             page.Toggle("Follow me", Follow);
+
+            page.Header("Search", "ico_magnifying_looking_glass");
+            page.Toggle("Show AI-generated content", ShowAI, () => MovieScreen.SetShowAI(ShowAI.Value));
+
+            page.Header("Multiplayer", "ico_server");
+            page.Toggle("Share my screen with the room", Share);
+            page.Toggle("Show other players' screens", ShowOthers, () => {
+                if (!ShowOthers.Value) {
+                    MovieScreen.RemoveAllRemotes();
+                }
+            });
 
             page.Header("Playback", "ico_speaker");
             page.Slider("Volume", Volume, 0f, 1f, 0.05f, v => $"{v * 100f:0}");

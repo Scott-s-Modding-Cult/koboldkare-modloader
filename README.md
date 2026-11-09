@@ -10,7 +10,7 @@ These mods are adult content, like the game.
 
 ## Installing (players)
 
-Get the zips from the [Releases page](https://github.com/scottricity/koboldkare-modloader/releases).
+Get the zips from the [Releases page](https://github.com/Scott-s-Modding-Cult/koboldkare-modloader/releases).
 
 1. Close the game.
 2. Unzip **`KoboldKare-ModLoader.zip`** into the KoboldKare folder (the one with `KoboldKare.exe`), and say yes
@@ -34,7 +34,7 @@ To play without mods, untick **Load mods (BepInEx)** in the Mod Manager.
 | NPC AI | NPC kobolds roam the map and pair up at animation stations. `/npc-ai` and an F8 panel tab | ModKit |
 | UI Theme | Recolours the game UI with themes. Pick one in Options > Graphics > UI Theme, the F8 panel, or `/theme`. **Create theme** (under Import theme, or in the F8 panel) opens a colour editor with a live preview; your themes keep the game's frame shapes and show up in the dropdown, and **Edit theme** changes them later. Comes with the Night Sky sample theme | ModKit |
 | Voice Chat | Proximity voice chat: voices come from each player's kobold and fade with distance. Push-to-talk (**V**), toggle or open mic; volume, hearing distance, mute and a mic test (hear yourself) in the F8 panel or `/voice`. To test alone, `/voice block` (or **Place test block** in the panel) drops a cube that plays your mic back in 3D, so you can walk around it and hear the falloff. Voices behind walls sound muffled and quieter (adjustable, or off), and they pick up the map's reverb zones like other game sounds. Shows who's talking in the bottom-left corner | ModKit |
-| Movie Block | A floating 3D video screen in front of you that browses **e621** or **rule34.xxx** by tag and plays the videos with 3D sound. `/movieblock e621` or `/movieblock r34` opens it; **F7** switches between using the screen (free cursor: type tags with autocomplete, click thumbnails, seek, loop, volume, click a video's tags to add or exclude them) and playing. Only you see it. Needs the Unity VideoModule (see below) | ModKit |
+| Movie Block | A floating 3D video screen in front of you that browses **e621** or **rule34.xxx** by tag and plays the videos with 3D sound. `/movieblock e621` or `/movieblock r34` opens it; **F7** switches between using the screen (free cursor: type tags with autocomplete, click thumbnails, seek, loop, volume, click a video's tags to add or exclude them) and playing. Double-click a video (or **Immersive**) for a bigger, curved screen that dims the world around you (curve, darkness and size in the F8 panel or Options). Others don't see it unless you share it (below). Needs the Unity VideoModule (see below) | ModKit |
 
 **Voice Chat notes:** everyone who wants to talk or listen needs the mod (players without it can still join, they
 just don't hear voice). It uses Steam voice, so start the game through Steam; your mic is the one picked in
@@ -42,13 +42,15 @@ just don't hear voice). It uses Steam voice, so start the game through Steam; yo
 developer pays for, so it only goes to players who have the mod and is sent about 10 times a second while you talk.
 Change the talk key with `/voice key B` (or `TalkKey` in `BepInEx/config/koboldkare.voicechat.cfg`).
 
+**Movie Block multiplayer:** `/movieblock share on` (or **Options > Share my screen**) shows your screen and what it plays to other players in the room who have Movie Block and have turned on `/movieblock others on` (**Show others' screens**). Both are off by default. Each player downloads the video themselves and stays in sync with the owner's play, pause and seeking; only the owner can change what plays, and each viewer's own blacklist, AI setting and minors filter still apply. It's synced through the game's Photon room: the latest state of each shared screen is kept in the room's event cache on the server, so players who join later see it straight away, and it's cleared when its owner leaves. Traffic is small (one event when something changes, plus a heartbeat every 4 seconds).
+
 **Movie Block notes:** the game ships a stripped `UnityEngine.VideoModule.dll` that can't play anything. Copy
 `UnityEngine.VideoModule.dll` from the same Unity **2021.3.45f2** folder as AIModule (below) into
 `BepInEx\unstripped_corlib`. It's Unity's file, so it isn't included. rule34.xxx only answers API requests with a free
 key: log in, open **My Account > Options**, generate an **API Access Credentials** key, then paste the
 `&api_key=...&user_id=...` text with `/movieblock r34key <text>`. e621 works without a login. Videos download to
 `%TEMP%\KoboldKare-MovieBlock` (capped at 1.5 GB; `/movieblock cache clear` empties it). Content involving minors is
-always filtered out; block more tags with `Blacklist` in `BepInEx/config/koboldkare.movieblock.cfg`
+always filtered out. AI-generated posts are hidden unless you turn them on in the screen's **Options** (or `/movieblock ai on`). Block more tags in **Options > Tag blacklist** on the screen (stored as `Blacklist` in `BepInEx/config/koboldkare.movieblock.cfg`)
 (default `gore scat watersports`).
 
 **NPC AI and path-finding:** the game also ships a stripped `UnityEngine.AIModule.dll` without NavMesh path

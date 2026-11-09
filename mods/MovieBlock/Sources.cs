@@ -54,15 +54,31 @@ namespace MovieBlock {
                                                    .Select(t => t.Trim().ToLowerInvariant().TrimStart('-'))
                                                    .Where(t => t.Length > 0);
 
+        // Both sites tag AI art this way. The first two are excluded in the search itself; the rest are only
+        // checked on the results (they nearly always come with ai_generated anyway).
+        private static readonly string[] AiSearchTags = { "ai_generated", "ai_assisted" };
+        private static readonly string[] AiResultTags = { "ai_generated", "ai_assisted", "stable_diffusion", "novelai", "midjourney", "dall-e" };
+
+        protected static IEnumerable<string> AiExcluded(bool forSearch) =>
+            MovieBlockPlugin.ShowAI.Value ? Enumerable.Empty<string>() : forSearch ? AiSearchTags : AiResultTags;
+
         protected static bool IsBlocked(Post post, HashSet<string> blocked) => post.Tags.Any(blocked.Contains);
+
+        /// <summary>True if this viewer's own filters (minors, AI setting, blacklist) hide a post with these tags.</summary>
+        public static bool BlockedForViewer(IEnumerable<string> tags) {
+            var blocked = BlockedSet();
+            return tags.Any(t => blocked.Contains(t));
+        }
 
         protected static HashSet<string> BlockedSet() {
             var set = new HashSet<string>(HardBlocked);
-            foreach (var t in UserBlacklist()) {
+            foreach (var t in UserBlacklist().Concat(AiExcluded(forSearch: false))) {
                 set.Add(t);
             }
             return set;
         }
+
+        private const int MaxQueryTags = 38;
 
         /// <summary>The user's tags plus exclusions, de-duplicated, ready for the query string.</summary>
         protected static string BuildQuery(string userTags, IEnumerable<string> extra) {
@@ -77,7 +93,17 @@ namespace MovieBlock {
                     words.Add(w);
                 }
             }
-            foreach (var t in HardBlocked.Concat(UserBlacklist())) {
+            foreach (var t in HardBlocked) {
+                if (!words.Contains("-" + t)) {
+                    words.Add("-" + t);
+                }
+            }
+            // e621 rejects searches with more than 40 tags. Exclude what fits in the search itself; the rest of the
+            // blacklist is still filtered out of the results (BlockedSet), so nothing blacklisted ever shows.
+            foreach (var t in AiExcluded(forSearch: true).Concat(UserBlacklist())) {
+                if (words.Count >= MaxQueryTags) {
+                    break;
+                }
                 if (!words.Contains("-" + t)) {
                     words.Add("-" + t);
                 }

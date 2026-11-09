@@ -37,7 +37,7 @@ namespace MovieBlock {
     /// </summary>
     internal static class Net {
         // e621 asks API clients for a descriptive User-Agent naming the project.
-        public const string UserAgent = "KoboldKare-MovieBlock/1.0 (github.com/scottricity/koboldkare-modloader)";
+        public const string UserAgent = "KoboldKare-MovieBlock/1.0 (github.com/Scott-s-Modding-Cult/koboldkare-modloader)";
 
         private class Active {
             public UnityWebRequest Request;
