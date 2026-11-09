@@ -29,6 +29,12 @@
     <Deploy Condition="'$(Deploy)' == ''">true</Deploy>
   </PropertyGroup>
 
+  <!-- Settings for this PC only, never committed (Directory.Build.local.props is gitignored). For example
+         <Project><PropertyGroup><SkipDeploy>NpcAI;OtherMod</SkipDeploy></PropertyGroup></Project>
+       builds those projects but keeps them out of BepInEx/plugins and _staged, so a build of your own that's
+       installed there isn't replaced. make_release_zips.ps1 clears SkipDeploy, so releases still get every mod. -->
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.local.props" Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')" />
+
   <!-- Compile against the game's own (stripped) assemblies: if a member was stripped from the game,
        the build fails instead of the mod failing at runtime. -->
   <ItemGroup>

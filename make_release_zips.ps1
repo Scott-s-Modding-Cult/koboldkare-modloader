@@ -27,8 +27,9 @@ foreach ($dir in $build, $dist) {
 New-Item -ItemType Directory -Force $build, $dist, $modsOut | Out-Null
 
 # Build into build\plugins instead of the game (or ModSource\_staged, which the Mod Manager would install).
+# SkipDeploy is cleared so a local Directory.Build.local.props can't leave a mod out of the zips.
 $plugins = Join-Path $build 'plugins'
-dotnet build "$here\KoboldKareMods.sln" -c Release -p:Deploy=false "-p:StagingDir=$plugins" "-p:GameDir=$GameDir" -nologo -v:minimal
+dotnet build "$here\KoboldKareMods.sln" -c Release -p:Deploy=false "-p:SkipDeploy=" "-p:StagingDir=$plugins" "-p:GameDir=$GameDir" -nologo -v:minimal
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 $manager = Join-Path $here 'ModManager\bin\Release\KoboldKare Mod Manager.exe'
 

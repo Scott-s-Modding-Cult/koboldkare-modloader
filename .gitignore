@@ -20,3 +20,6 @@ mods/UITheme/test-themes/
 
 # Local-only project page preview (not published).
 docs/
+
+# Settings for this PC only (see Directory.Build.props).
+Directory.Build.local.props

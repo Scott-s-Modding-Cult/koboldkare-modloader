@@ -1,16 +1,25 @@
 <Project>
+  <PropertyGroup>
+    <!-- True when this project is listed in SkipDeploy (see Directory.Build.local.props in Directory.Build.props). -->
+    <DeploySkipped>$([System.String]::Copy(';$(SkipDeploy);').ToLowerInvariant().Contains(';$(MSBuildProjectName.ToLowerInvariant());'))</DeploySkipped>
+  </PropertyGroup>
+
   <!-- Copy the built plugin into BepInEx/plugins/<PluginFolder> (game closed) ... -->
   <!-- Templates (IsTemplate=true, e.g. ExampleMod) and tools (IsModPlugin=false, e.g. ModManager) build but are never deployed or staged. -->
-  <Target Name="DeployToBepInEx" AfterTargets="Build" Condition="'$(Deploy)' == 'true' And '$(IsTemplate)' != 'true' And '$(IsModPlugin)' != 'false'">
+  <Target Name="DeployToBepInEx" AfterTargets="Build" Condition="'$(Deploy)' == 'true' And '$(IsTemplate)' != 'true' And '$(IsModPlugin)' != 'false' And '$(DeploySkipped)' != 'true'">
     <MakeDir Directories="$(BepInExDir)\plugins\$(PluginFolder)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BepInExDir)\plugins\$(PluginFolder)" />
     <Message Importance="high" Text="Deployed $(TargetFileName) -> BepInEx\plugins\$(PluginFolder)" />
   </Target>
 
   <!-- ... or into ModSource/_staged/<PluginFolder> while the game is running (deploy.ps1 copies it later). -->
-  <Target Name="StageForDeploy" AfterTargets="Build" Condition="'$(Deploy)' != 'true' And '$(IsTemplate)' != 'true' And '$(IsModPlugin)' != 'false'">
+  <Target Name="StageForDeploy" AfterTargets="Build" Condition="'$(Deploy)' != 'true' And '$(IsTemplate)' != 'true' And '$(IsModPlugin)' != 'false' And '$(DeploySkipped)' != 'true'">
     <MakeDir Directories="$(StagingDir)\$(PluginFolder)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(StagingDir)\$(PluginFolder)" />
     <Message Importance="high" Text="Staged $(TargetFileName) -> ModSource\_staged\$(PluginFolder) (run deploy.ps1 once the game is closed)" />
+  </Target>
+
+  <Target Name="ReportDeploySkipped" AfterTargets="Build" Condition="'$(DeploySkipped)' == 'true' And '$(IsTemplate)' != 'true' And '$(IsModPlugin)' != 'false'">
+    <Message Importance="high" Text="Not deploying $(TargetFileName): $(MSBuildProjectName) is in SkipDeploy (Directory.Build.local.props)" />
   </Target>
 </Project>
