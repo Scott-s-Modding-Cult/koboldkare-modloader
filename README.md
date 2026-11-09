@@ -1,5 +1,7 @@
 # KoboldKare Mod Loader
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20cult-5865F2?logo=discord&logoColor=white)](https://discord.gg/pjTY3jhbVz)
+
 A mod manager, a small framework (ModKit) and a few mods for KoboldKare, all on [BepInEx 5](https://github.com/BepInEx/BepInEx).
 Tick the mods you want and play.
 
