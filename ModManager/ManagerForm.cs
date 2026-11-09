@@ -18,18 +18,39 @@ namespace KoboldKareModManager
         [DllImport("user32.dll")]
         static extern bool SetProcessDPIAware();
 
+        const string Caption = "KoboldKare Mod Manager";
+
+        // Set once the game folder is known, so crash reports can go to BepInEx\modmanager.log.
+        static GameFolder game;
+
         [STAThread]
         static void Main(string[] args)
+        {
+            // A WinExe that throws before its window opens just vanishes; show and log the error instead.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (s, e) => ReportCrash(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => ReportCrash(e.ExceptionObject as Exception);
+            try
+            {
+                Run();
+            }
+            catch (Exception error)
+            {
+                ReportCrash(error);
+            }
+        }
+
+        static void Run()
         {
             SetProcessDPIAware();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            GameFolder game = GameFolder.Find(AppDomain.CurrentDomain.BaseDirectory);
+            game = GameFolder.Find(AppDomain.CurrentDomain.BaseDirectory);
             if (game == null)
             {
                 MessageBox.Show("Put KoboldKare Mod Manager.exe in the KoboldKare game folder (next to KoboldKare.exe).",
-                    "KoboldKare Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Caption, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             // Mono.Cecil comes with BepInEx; use that copy rather than shipping another.
@@ -41,10 +62,42 @@ namespace KoboldKareModManager
             if (!Directory.Exists(game.BepInEx))
             {
                 MessageBox.Show("BepInEx isn't installed in this game folder, so there are no mods to manage.",
-                    "KoboldKare Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Caption, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (!File.Exists(Path.Combine(game.Core, "Mono.Cecil.dll")))
+            {
+                MessageBox.Show("BepInEx looks incomplete: BepInEx\\core\\Mono.Cecil.dll is missing, and the mod manager needs it to read mods.\n\n" +
+                    "Extract the whole BepInEx 5 (x64) zip into the game folder again, start the game once, then open the mod manager. " +
+                    "If the file keeps disappearing, check your antivirus quarantine.",
+                    Caption, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             Application.Run(new ManagerForm(game));
+        }
+
+        static bool reporting;
+
+        static void ReportCrash(Exception error)
+        {
+            if (reporting) { return; }
+            reporting = true;
+            try
+            {
+                string details = error == null ? "Unknown error." : error.ToString();
+                bool logged = false;
+                if (game != null && Directory.Exists(game.BepInEx))
+                {
+                    game.Log("Crashed: " + details);
+                    logged = File.Exists(game.ManagerLog);
+                }
+                string summary = error == null ? "Unknown error." : error.GetType().Name + ": " + error.Message;
+                string message = "The mod manager hit an error and has to close.\n\n" + summary + "\n\n" +
+                    (logged ? "Full details are in BepInEx\\modmanager.log." : details);
+                MessageBox.Show(message, Caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception) { }
+            Environment.Exit(1);
         }
     }
 
