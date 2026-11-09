@@ -65,6 +65,8 @@ Run `KoboldKare Mod Manager.exe` in the game folder.
 
 - **Tick / untick** a mod, then **Save**. Off mods move to `BepInEx/plugins-disabled/` (BepInEx loads every
   DLL under `plugins/`, so a disabled mod has to live outside it). Ticking a mod also ticks the mods it needs.
+- Any BepInEx plugin shows up, not just the ones in this repo. Preloader patchers in `BepInEx/patchers/` are
+  listed after the plugins, marked "(patcher)", and turn off into `BepInEx/patchers-disabled/`.
 - The details pane reads each DLL's `[BepInPlugin]`/`[BepInDependency]` attributes (via BepInEx's Mono.Cecil,
   without locking files) plus the assembly description (`<Description>` in the `.csproj`) or a Thunderstore
   `manifest.json`. It shows what the mod needs, what needs it, its config file, and whether it loaded last run.
@@ -72,6 +74,10 @@ Run `KoboldKare Mod Manager.exe` in the game folder.
   in the last `LogOutput.log`.
 - **Add Mod...** (or drop files on the list) installs a `.dll` or `.zip`, laid out as `BepInEx/plugins/...`,
   `plugins/...` (Thunderstore), a single folder, or loose DLLs. A mod being replaced goes to the Recycle Bin.
+  A `.dll` that's only a preloader patcher, or a zip's `patchers/` folder, goes to `BepInEx/patchers/`.
+- On start it checks this repo's newest GitHub release for a newer `KoboldKare-ModManager.zip` and offers to
+  update itself. It compares the exe's version, so bump `<Version>` in `ModManager/ModManager.csproj` whenever
+  a release changes the Mod Manager.
 - **Save** also installs anything in `ModSource/_staged` (the same thing `deploy.ps1` does).
 - **Load mods (BepInEx)** turns off all mods at once (`enabled` in `doorstop_config.ini`).
 - **Save and Play** starts the game through Steam, so workshop mods load too.

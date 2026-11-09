@@ -8,7 +8,7 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>KoboldKare Mod Manager</AssemblyName>
     <RootNamespace>KoboldKareModManager</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>KoboldKare Mod Manager</Product>
     <Description>Turns KoboldKare BepInEx mods on and off.</Description>
     <!-- Taken from the game's own exe at build time (see MakeIcon), so no game files live in the repo. -->

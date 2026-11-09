@@ -26,6 +26,8 @@ namespace KoboldKareModManager
         public string DisabledPlugins => Path.Combine(BepInEx, "plugins-disabled");
         public string Config => Path.Combine(BepInEx, "config");
         public string Patchers => Path.Combine(BepInEx, "patchers");
+        // Outside patchers\, because BepInEx runs every DLL under patchers\ however deep it is.
+        public string DisabledPatchers => Path.Combine(BepInEx, "patchers-disabled");
         public string Core => Path.Combine(BepInEx, "core");
         public string LogOutput => Path.Combine(BepInEx, "LogOutput.log");
         public string Doorstop => Path.Combine(Root, "doorstop_config.ini");
@@ -107,16 +109,21 @@ namespace KoboldKareModManager
         public List<string> Processes = new List<string>();
     }
 
-    // One folder (or loose DLL) under plugins\ or plugins-disabled\. This is what gets ticked on and off.
+    // One folder (or loose DLL) under plugins\ or plugins-disabled\, or patchers\ or patchers-disabled\.
+    // This is what gets ticked on and off.
     class ModEntry
     {
         public string Name, Path, Title, Version = "", Author = "", Description = "", Website = "", Error;
-        public bool IsLoose, Installed, Enabled;   // Installed: in plugins\ now. Enabled: what the tick says.
+        public bool IsLoose, Installed, Enabled;   // Installed: in plugins\ (or patchers\) now. Enabled: what the tick says.
+        public bool IsPatcher;                     // A preloader patcher, from patchers\ rather than plugins\.
         public List<PluginInfo> Plugins = new List<PluginInfo>();
+        public List<string> PatcherNames = new List<string>();
         public List<string> Dlls = new List<string>();
         public int FileCount;
 
-        public string Line => Version == "" ? Title : Title + "  v" + Version;
+        public string Line => (Version == "" ? Title : Title + "  v" + Version) + (IsPatcher ? "  (patcher)" : "");
+        // A plugin and a patcher often share a folder name, so this, not Name, tells entries apart.
+        public string Key => (IsPatcher ? "patcher:" : "plugin:") + Name;
         public IEnumerable<string> Guids => Plugins.Select(p => p.Guid);
     }
 
@@ -134,7 +141,7 @@ namespace KoboldKareModManager
             var found = new List<ModEntry>();
             // Where Cecil may look for assemblies a plugin's attributes refer to (BepInEx.dll for DependencyFlags).
             var dirs = new List<string> { game.Core, Path.Combine(game.BepInEx, "unstripped_corlib"), Path.Combine(game.Root, @"KoboldKare_Data\Managed") };
-            foreach (string top in new[] { game.Plugins, game.DisabledPlugins }.Where(Directory.Exists))
+            foreach (string top in new[] { game.Plugins, game.DisabledPlugins, game.Patchers, game.DisabledPatchers }.Where(Directory.Exists))
             {
                 dirs.Add(top);
                 dirs.AddRange(Directory.GetDirectories(top, "*", SearchOption.AllDirectories));
@@ -142,35 +149,39 @@ namespace KoboldKareModManager
             PluginReader.Begin(dirs);
             try
             {
-                Scan(game.Plugins, true, found);
-                Scan(game.DisabledPlugins, false, found);
+                Scan(game.Plugins, true, false, found);
+                Scan(game.DisabledPlugins, false, false, found);
+                Scan(game.Patchers, true, true, found);
+                Scan(game.DisabledPatchers, false, true, found);
             }
             finally
             {
                 PluginReader.End();
             }
-            return found.OrderBy(m => m.Title, StringComparer.OrdinalIgnoreCase).ToList();
+            // Plugins first, then patchers.
+            return found.OrderBy(m => m.IsPatcher).ThenBy(m => m.Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
-        static void Scan(string folder, bool installed, List<ModEntry> into)
+        static void Scan(string folder, bool installed, bool patchers, List<ModEntry> into)
         {
             if (!Directory.Exists(folder)) { return; }
             foreach (string dir in Directory.GetDirectories(folder))
             {
-                into.Add(Read(dir, false, installed));
+                into.Add(Read(dir, false, installed, patchers));
             }
             foreach (string dll in Directory.GetFiles(folder, "*.dll"))
             {
-                into.Add(Read(dll, true, installed));
+                into.Add(Read(dll, true, installed, patchers));
             }
         }
 
-        static ModEntry Read(string path, bool loose, bool installed)
+        static ModEntry Read(string path, bool loose, bool installed, bool patcher)
         {
             var mod = new ModEntry
             {
                 Path = path,
                 IsLoose = loose,
+                IsPatcher = patcher,
                 Installed = installed,
                 Enabled = installed,
                 Name = System.IO.Path.GetFileName(path),
@@ -183,7 +194,14 @@ namespace KoboldKareModManager
                 mod.Dlls = files.Where(f => f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).ToList();
                 foreach (string dll in mod.Dlls)
                 {
-                    try { mod.Plugins.AddRange(PluginReader.Read(dll)); }
+                    try
+                    {
+                        // BepInEx only runs patchers from patchers\ and only loads plugins from plugins\.
+                        if (!patcher) { mod.Plugins.AddRange(PluginReader.Read(dll)); continue; }
+                        List<string> found = PluginReader.ReadPatchers(dll);
+                        mod.PatcherNames.AddRange(found);
+                        if (found.Count > 0 && mod.Version == "") { mod.Version = PluginReader.AssemblyVersion(dll); }
+                    }
                     catch (BadImageFormatException) { } // A native DLL shipped alongside; not a plugin.
                 }
                 if (!loose) { ReadManifest(mod); }
@@ -270,13 +288,22 @@ namespace KoboldKareModManager
             {
                 if (mod.Error != null) { problems.Add(new Problem(mod.Title + " could not be read: " + mod.Error, true)); }
             }
-            foreach (var group in mods.GroupBy(m => m.Name, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            foreach (var group in mods.GroupBy(m => m.Key, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
             {
-                problems.Add(new Problem(group.Key + " is in both plugins and plugins-disabled. Remove one copy.", true));
+                ModEntry first = group.First();
+                problems.Add(new Problem(first.Name + (first.IsPatcher ? " is in both patchers and patchers-disabled." : " is in both plugins and plugins-disabled.") + " Remove one copy.", true));
             }
 
             foreach (ModEntry mod in on)
             {
+                if (mod.IsPatcher)
+                {
+                    if (mod.PatcherNames.Count == 0 && mod.Dlls.Count > 0 && mod.Error == null)
+                    {
+                        problems.Add(new Problem(mod.Title + " is in BepInEx\\patchers but has no preloader patcher in it (it may be a library for one, or a plugin in the wrong folder)."));
+                    }
+                    continue;
+                }
                 if (mod.Plugins.Count == 0 && mod.Dlls.Count > 0 && mod.Error == null)
                 {
                     // Fine for a library another mod uses; worth knowing otherwise.
@@ -430,6 +457,41 @@ namespace KoboldKareModManager
             return result;
         }
 
+        // Preloader patcher classes in a DLL, by name. BepInEx 5 runs any class with a static TargetDLLs property and a
+        // static Patch method; BepInEx 6 patchers carry [PatcherPluginInfo(guid, name, version)] instead.
+        public static List<string> ReadPatchers(string dll)
+        {
+            var result = new List<string>();
+            using (var assembly = Open(dll))
+            {
+                foreach (Mono.Cecil.TypeDefinition type in assembly.MainModule.GetTypes())
+                {
+                    bool targets = type.Properties.Any(p => p.Name == "TargetDLLs" && p.GetMethod != null && p.GetMethod.IsStatic);
+                    bool patch = type.Methods.Any(m => m.Name == "Patch" && m.IsStatic && m.IsPublic);
+                    if (targets && patch) { result.Add(type.Name); continue; }
+
+                    Mono.Cecil.CustomAttribute info = type.CustomAttributes.FirstOrDefault(a => a.AttributeType.Name == "PatcherPluginInfo" || a.AttributeType.Name == "PatcherPluginInfoAttribute");
+                    if (info == null) { continue; }
+                    string name = null;
+                    try { name = info.ConstructorArguments.Count > 1 ? info.ConstructorArguments[1].Value as string : null; }
+                    catch (Exception) { }
+                    result.Add(string.IsNullOrEmpty(name) ? type.Name : name);
+                }
+            }
+            return result;
+        }
+
+        // The DLL's assembly version, or "" when it's left at 0.0.0.0.
+        public static string AssemblyVersion(string dll)
+        {
+            using (var assembly = Open(dll))
+            {
+                Version version = assembly.Name.Version;
+                if (version == null || version == new Version(0, 0, 0, 0)) { return ""; }
+                return version.Revision > 0 ? version.ToString() : version.ToString(3);
+            }
+        }
+
         // The first DLL's [AssemblyDescription], e.g. <Description> in the mod's .csproj.
         public static string Description(IEnumerable<string> dlls)
         {
@@ -459,7 +521,8 @@ namespace KoboldKareModManager
             var errors = new List<string>();
             foreach (ModEntry mod in mods.Where(m => m.Enabled != m.Installed))
             {
-                string target = Path.Combine(mod.Enabled ? game.Plugins : game.DisabledPlugins, mod.Name);
+                string folder = mod.IsPatcher ? (mod.Enabled ? game.Patchers : game.DisabledPatchers) : (mod.Enabled ? game.Plugins : game.DisabledPlugins);
+                string target = Path.Combine(folder, mod.Name);
                 try
                 {
                     if (File.Exists(target) || Directory.Exists(target)) { throw new IOException(game.Relative(target) + " already exists."); }
@@ -480,7 +543,7 @@ namespace KoboldKareModManager
                 foreach (string name in Scanner.StagedMods(game))
                 {
                     // A staged build of a mod that's turned off goes next to it, so it stays off.
-                    ModEntry existing = mods.FirstOrDefault(m => !m.IsLoose && m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    ModEntry existing = mods.FirstOrDefault(m => !m.IsLoose && !m.IsPatcher && m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
                     string target = existing != null ? existing.Path : Path.Combine(game.Plugins, name);
                     string source = Path.Combine(game.Staged, name);
                     try
@@ -566,10 +629,16 @@ namespace KoboldKareModManager
 
             if (Path.GetExtension(file).Equals(".dll", StringComparison.OrdinalIgnoreCase))
             {
-                string folder = Path.Combine(plan.Temp, name);
+                // A DLL that's only a preloader patcher goes to patchers\, where BepInEx looks for it.
+                bool patcher = false;
+                try { patcher = PluginReader.Read(file).Count == 0 && PluginReader.ReadPatchers(file).Count > 0; }
+                catch (Exception) { }
+                finally { PluginReader.End(); }
+                string folder = Path.Combine(plan.Temp, patcher ? "patchers" : "", name);
                 Directory.CreateDirectory(folder);
                 File.Copy(file, Path.Combine(folder, Path.GetFileName(file)));
-                plan.Mods.Add(new KeyValuePair<string, string>(name, folder));
+                if (patcher) { plan.Patchers = Path.GetDirectoryName(folder); }
+                else { plan.Mods.Add(new KeyValuePair<string, string>(name, folder)); }
                 return plan;
             }
 
@@ -588,11 +657,15 @@ namespace KoboldKareModManager
 
             string bep = FindDir(root, "BepInEx");
             string pluginsDir = bep != null ? FindDir(bep, "plugins") : FindDir(root, "plugins");
-            if (pluginsDir != null)
+            // Where config\ and patchers\ sit: next to plugins\, in BepInEx\, or at the top (a Thunderstore patcher).
+            string bepRoot = pluginsDir != null ? Path.GetDirectoryName(pluginsDir) : bep ?? (FindDir(root, "patchers") != null ? root : null);
+            if (bepRoot != null)
             {
-                string bepRoot = Path.GetDirectoryName(pluginsDir);
                 plan.Config = FindDir(bepRoot, "config");
                 plan.Patchers = FindDir(bepRoot, "patchers");
+            }
+            if (pluginsDir != null)
+            {
                 var folders = Directory.GetDirectories(pluginsDir);
                 var loose = Directory.GetFiles(pluginsDir);
                 if (loose.Length > 0 || folders.Length == 0)
@@ -606,7 +679,7 @@ namespace KoboldKareModManager
                 foreach (string folder in folders) { plan.Mods.Add(new KeyValuePair<string, string>(Path.GetFileName(folder), folder)); }
                 if (plan.Mods.Count == 1 && File.Exists(manifest)) { File.Copy(manifest, Path.Combine(plan.Mods[0].Value, "manifest.json"), true); }
             }
-            else
+            else if (bepRoot == null)
             {
                 // A single mod. Unwrap one folder level when that's all the zip holds (besides readme-type files).
                 string content = root;
@@ -621,7 +694,8 @@ namespace KoboldKareModManager
                 plan.Mods.Add(new KeyValuePair<string, string>(name, content));
             }
 
-            if (!plan.Mods.Any(m => Directory.EnumerateFiles(m.Value, "*.dll", SearchOption.AllDirectories).Any()))
+            bool hasPatchers = plan.Patchers != null && Directory.EnumerateFiles(plan.Patchers, "*.dll", SearchOption.AllDirectories).Any();
+            if (!hasPatchers && !plan.Mods.Any(m => Directory.EnumerateFiles(m.Value, "*.dll", SearchOption.AllDirectories).Any()))
             {
                 throw new InvalidDataException("There's no .dll in " + Path.GetFileName(file) + ", so it isn't a BepInEx mod.");
             }
@@ -650,19 +724,20 @@ namespace KoboldKareModManager
 
         // Mods that would replace something already installed, as (name, existing path).
         public static List<ModEntry> Conflicts(Plan plan, List<ModEntry> mods) =>
-            mods.Where(m => plan.Mods.Any(p => p.Key.Equals(m.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+            mods.Where(m => !m.IsPatcher && plan.Mods.Any(p => p.Key.Equals(m.Name, StringComparison.OrdinalIgnoreCase))).ToList();
 
         // Puts the mods in place. A mod being replaced keeps its on/off state; its old folder goes to the Recycle Bin.
+        // Returns the installed entries' keys (see ModEntry.Key).
         public static List<string> Install(GameFolder game, Plan plan, List<ModEntry> mods)
         {
             var installed = new List<string>();
             foreach (var pair in plan.Mods)
             {
-                ModEntry old = mods.FirstOrDefault(m => m.Name.Equals(pair.Key, StringComparison.OrdinalIgnoreCase));
+                ModEntry old = mods.FirstOrDefault(m => !m.IsPatcher && m.Name.Equals(pair.Key, StringComparison.OrdinalIgnoreCase));
                 string target = old != null && !old.IsLoose ? old.Path : Path.Combine(game.Plugins, pair.Key);
                 if (old != null) { Mover.Recycle(old.Path); }
                 Mover.CopyTree(pair.Value, target);
-                installed.Add(pair.Key);
+                installed.Add("plugin:" + pair.Key);
                 game.Log("Installed " + pair.Key + " to " + game.Relative(target));
             }
             // Config: only files the player doesn't have yet, so their settings are never overwritten.
@@ -676,7 +751,24 @@ namespace KoboldKareModManager
                     File.Copy(file, dest);
                 }
             }
-            if (plan.Patchers != null) { Mover.CopyTree(plan.Patchers, game.Patchers); }
+            // Patchers merge over what's there. One that's turned off gets its update in patchers-disabled, so it stays off.
+            if (plan.Patchers != null)
+            {
+                foreach (string entry in Directory.GetFileSystemEntries(plan.Patchers))
+                {
+                    string name = Path.GetFileName(entry);
+                    ModEntry old = mods.FirstOrDefault(m => m.IsPatcher && m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    string target = Path.Combine(old != null && !old.Installed ? game.DisabledPatchers : game.Patchers, name);
+                    if (Directory.Exists(entry)) { Mover.CopyTree(entry, target); }
+                    else
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(target));
+                        File.Copy(entry, target, true);
+                    }
+                    installed.Add("patcher:" + name);
+                    game.Log("Installed patcher " + name + " to " + game.Relative(target));
+                }
+            }
             return installed;
         }
 

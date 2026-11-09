@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 
@@ -46,6 +47,7 @@ namespace KoboldKareModManager
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            Updater.CleanUp(Application.ExecutablePath);
             game = GameFolder.Find(AppDomain.CurrentDomain.BaseDirectory);
             if (game == null)
             {
@@ -130,7 +132,7 @@ namespace KoboldKareModManager
         public ManagerForm(GameFolder game)
         {
             this.game = game;
-            Text = Caption;
+            Text = Caption + " " + Updater.Show(Updater.Current);
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(800, 520);
@@ -152,9 +154,11 @@ namespace KoboldKareModManager
             list.DragDrop += (s, e) => { foreach (string file in DroppedFiles(e.Data)) { InstallFile(file); } };
             // Pick up the game starting or stopping, and mods added by hand, whenever the window comes back.
             Activated += (s, e) => Reload(false);
+            Shown += (s, e) => CheckForUpdate();
 
             tips.SetToolTip(add, "Install a mod from a .zip or .dll (or drop files on the list).");
             tips.SetToolTip(remove, "Send the selected mod to the Recycle Bin. Its config file is kept.");
+            tips.SetToolTip(list, "Plugins from BepInEx\\plugins, then preloader patchers from BepInEx\\patchers.");
             tips.SetToolTip(bepinex, "Off starts the game without any mods (sets enabled in doorstop_config.ini).");
             tips.SetToolTip(play, "Save, then start KoboldKare through Steam so workshop mods load too.");
 
@@ -213,11 +217,12 @@ namespace KoboldKareModManager
             lastLoaded = Scanner.LastLoaded(game, out lastErrors, out lastRun);
             if (!first)
             {
-                var wanted = mods.Where(m => m.Enabled != m.Installed).ToDictionary(m => m.Name, m => m.Enabled, StringComparer.OrdinalIgnoreCase);
-                string selected = Selected?.Name;
+                var wanted = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                foreach (ModEntry mod in mods.Where(m => m.Enabled != m.Installed)) { wanted[mod.Key] = mod.Enabled; }
+                string selected = Selected?.Key;
                 mods = Scanner.Load(game);
-                foreach (ModEntry mod in mods) { if (wanted.TryGetValue(mod.Name, out bool on)) { mod.Enabled = on; } }
-                Fill(mods.FindIndex(m => m.Name == selected));
+                foreach (ModEntry mod in mods) { if (wanted.TryGetValue(mod.Key, out bool on)) { mod.Enabled = on; } }
+                Fill(mods.FindIndex(m => m.Key == selected));
             }
             else
             {
@@ -287,6 +292,12 @@ namespace KoboldKareModManager
             if (mod.Author != "") { lines.Add("By " + mod.Author); }
             lines.Add("");
             if (mod.Description != "") { lines.Add(mod.Description); lines.Add(""); }
+            if (mod.IsPatcher)
+            {
+                lines.Add("Preloader patcher: BepInEx runs it before the game starts, to change the game's own code. " +
+                    "Turned off, it waits in BepInEx\\patchers-disabled.");
+                if (mod.PatcherNames.Count > 0) { lines.Add("Patchers: " + string.Join(", ", mod.PatcherNames.Distinct())); }
+            }
 
             foreach (PluginInfo plugin in mod.Plugins)
             {
@@ -365,6 +376,51 @@ namespace KoboldKareModManager
             return true;
         }
 
+        // Looks for a newer Mod Manager on GitHub in the background, then offers it. Quiet when offline.
+        async void CheckForUpdate()
+        {
+            Updater.Update update;
+            try
+            {
+                update = await Task.Run(() => Updater.Find(Updater.Current));
+            }
+            catch (Exception error)
+            {
+                game.Log("Could not check for a Mod Manager update: " + error.Message);
+                return;
+            }
+            if (update == null) { return; }
+            if (IsDisposed) { Updater.Discard(update); return; }
+
+            bool unsaved = mods.Any(m => m.Enabled != m.Installed);
+            string question = "Mod Manager " + Updater.Show(update.Version) + " is out (you have " + Updater.Show(Updater.Current) + ")." +
+                Environment.NewLine + Environment.NewLine + "Update now? The Mod Manager restarts" + (unsaved ? " after saving your changes." : ".");
+            if (MessageBox.Show(this, question, Caption, MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
+            {
+                Updater.Discard(update);
+                return;
+            }
+            if (unsaved && !Save()) { Updater.Discard(update); return; }
+            try
+            {
+                Updater.Apply(update, Application.ExecutablePath);
+                game.Log("Updated the Mod Manager to " + Updater.Show(update.Version));
+            }
+            catch (Exception error)
+            {
+                game.Log("Could not update the Mod Manager: " + error);
+                Updater.Discard(update);
+                if (MessageBox.Show(this, "Could not update the Mod Manager: " + error.Message + Environment.NewLine + Environment.NewLine +
+                    "Open the releases page to download it yourself?", Caption, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                    Open(string.IsNullOrEmpty(update.Page) ? Updater.ReleasesPage : update.Page);
+                }
+                return;
+            }
+            Process.Start(new ProcessStartInfo(Application.ExecutablePath) { WorkingDirectory = game.Root });
+            Close();
+        }
+
         void StartGame()
         {
             // Through Steam, or Steam workshop mods won't load.
@@ -404,7 +460,7 @@ namespace KoboldKareModManager
                 }
                 List<string> installed = Installer.Install(game, plan, mods);
                 Reload(false);
-                int index = mods.FindIndex(m => installed.Contains(m.Name, StringComparer.OrdinalIgnoreCase));
+                int index = mods.FindIndex(m => installed.Contains(m.Key, StringComparer.OrdinalIgnoreCase));
                 if (index >= 0) { list.SelectedIndex = index; }
             }
             catch (Exception error)
