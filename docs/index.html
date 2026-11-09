@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KoboldKare Mod Loader</title>
+<meta name="description" content="A mod manager, a small framework and a handful of mods for KoboldKare, built on BepInEx 5.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b14;
+    --bg2: #0c1324;
+    --panel: rgba(10, 16, 30, 0.82);
+    --card: rgba(255, 255, 255, 0.045);
+    --line: rgba(125, 255, 240, 0.16);
+    --title: #378ff9;
+    --title-deep: #1f5fbf;
+    --accent: #7dfff0;
+    --accent-dim: rgba(125, 255, 240, 0.55);
+    --text: #edeaff;
+    --dim: #a6abc8;
+    --ok: #77b4ff;
+    --cancel: #ff7d77;
+    --gold: #ffd36e;
+    --radius: 14px;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(55, 143, 249, 0.22), transparent 60%),
+      radial-gradient(900px 500px at -10% 30%, rgba(125, 255, 240, 0.10), transparent 60%),
+      linear-gradient(180deg, var(--bg2), var(--bg) 40%);
+    background-attachment: fixed;
+    color: var(--text);
+    font: 400 17px/1.6 Nunito, system-ui, sans-serif;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, kbd {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: rgba(125, 255, 240, 0.09);
+    border: 1px solid rgba(125, 255, 240, 0.18);
+    border-radius: 6px;
+    padding: 0.08em 0.4em;
+    white-space: nowrap;
+  }
+  kbd { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); border-bottom-width: 2px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  /* ------------------------------------------------ top */
+  .adult {
+    background: rgba(255, 125, 119, 0.12);
+    border-bottom: 1px solid rgba(255, 125, 119, 0.3);
+    color: #ffc9c6;
+    font-size: 14px;
+    text-align: center;
+    padding: 8px 16px;
+  }
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(10px);
+    background: rgba(7, 11, 20, 0.72);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 22px; height: 58px; }
+  nav .brand { font-weight: 900; color: var(--text); letter-spacing: 0.2px; margin-right: auto; display: flex; align-items: center; gap: 10px; }
+  nav .brand svg { width: 26px; height: 26px; }
+  nav a.link { color: var(--dim); font-weight: 700; font-size: 15px; }
+  nav a.link:hover { color: var(--accent); text-decoration: none; }
+  nav .brand { white-space: nowrap; }
+  @media (max-width: 760px) { nav a.link.opt { display: none; } nav .wrap { gap: 16px; } }
+  @media (max-width: 420px) { nav .brand { font-size: 15px; } nav .brand svg { width: 22px; height: 22px; } nav a.link { font-size: 14px; } }
+
+  header.hero { padding: 72px 0 40px; }
+  .hero h1 { font-size: clamp(36px, 6vw, 64px); line-height: 1.04; margin: 0 0 16px; font-weight: 900; letter-spacing: -0.5px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p.lead { font-size: clamp(18px, 2.2vw, 21px); color: var(--dim); max-width: 680px; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 800; font-size: 16px; color: #fff;
+    padding: 12px 20px; border-radius: 10px;
+    background: linear-gradient(180deg, var(--title), var(--title-deep));
+    box-shadow: 0 6px 20px rgba(55, 143, 249, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    border: 0; transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .btn:hover { transform: translateY(-1px); text-decoration: none; box-shadow: 0 10px 26px rgba(55, 143, 249, 0.45), inset 0 1px 0 rgba(255,255,255,0.25); }
+  .btn.ghost { background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); }
+  .btn.ghost:hover { box-shadow: inset 0 0 0 1px var(--accent-dim); }
+  .btn svg { width: 18px; height: 18px; }
+  .hero .facts { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 28px; color: var(--dim); font-size: 15px; }
+  .hero .facts b { color: var(--text); }
+
+  /* ------------------------------------------------ sections */
+  section { padding: 48px 0; }
+  h2 { font-size: clamp(26px, 3.4vw, 36px); margin: 0 0 8px; font-weight: 900; }
+  .sub { color: var(--dim); margin: 0 0 28px; max-width: 720px; }
+
+  /* ------------------------------------------------ mod cards (styled like the game's panels) */
+  .mods { display: grid; gap: 26px; }
+  .mod {
+    display: grid; grid-template-columns: 1.15fr 1fr; gap: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    scroll-margin-top: 80px;
+  }
+  .mod:nth-child(even) { grid-template-columns: 1fr 1.15fr; }
+  .mod:nth-child(even) .info { order: 2; }
+  @media (max-width: 860px) {
+    .mod, .mod:nth-child(even) { grid-template-columns: 1fr; }
+    .mod:nth-child(even) .info { order: 0; }
+  }
+  .mod .bar {
+    display: flex; align-items: center; gap: 12px;
+    background: linear-gradient(180deg, var(--title), var(--title-deep));
+    padding: 12px 20px;
+  }
+  .mod .bar svg { width: 30px; height: 30px; flex: none; }
+  .mod .bar h3 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: 0.2px; }
+  .mod .bar .tag { margin-left: auto; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px;
+                   background: rgba(0, 0, 0, 0.25); padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+  .mod .body { padding: 18px 22px 22px; }
+  .mod .body > p { margin: 0 0 14px; }
+  .mod ul { margin: 0 0 16px; padding-left: 0; list-style: none; }
+  .mod li { position: relative; padding-left: 22px; margin: 6px 0; }
+  .mod li::before { content: ""; position: absolute; left: 4px; top: 0.62em; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); transform: rotate(45deg); }
+  .mod .meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 4px; }
+  .mod .meta .needs { color: var(--dim); font-size: 14px; }
+  .mod .note { font-size: 14.5px; color: var(--dim); border-left: 3px solid var(--gold); padding: 6px 12px; margin: 0 0 16px; background: rgba(255, 211, 110, 0.06); border-radius: 0 8px 8px 0; }
+  .btn.small { font-size: 14px; padding: 8px 14px; border-radius: 8px; }
+
+  .visual {
+    position: relative; min-height: 300px;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(55, 143, 249, 0.18), transparent 55%),
+      linear-gradient(160deg, #0d1730, #08101f);
+    border-left: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    padding: 26px;
+    overflow: hidden;
+  }
+  .mod:nth-child(even) .visual { border-left: 0; border-right: 1px solid var(--line); }
+  @media (max-width: 860px) { .visual, .mod:nth-child(even) .visual { border: 0; border-top: 1px solid var(--line); } }
+
+  /* mini game window used by several visuals */
+  .win { width: 100%; max-width: 420px; background: rgba(0, 0, 0, 0.78); border-radius: 12px; overflow: hidden;
+         box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06); font-size: 13px; }
+  .win .wt { background: var(--title); padding: 8px 12px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+  .win .wt i { margin-left: auto; width: 16px; height: 16px; border-radius: 4px; background: rgba(0,0,0,0.25); }
+  .win .wb { padding: 12px; }
+
+  /* ModKit panel */
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs span { flex: 1; text-align: center; padding: 6px 4px; border-radius: 6px; background: rgba(0,0,0,0.45); color: var(--dim); font-weight: 700; font-size: 11.5px; }
+  .tabs span.on { background: rgba(55, 143, 249, 0.6); color: #fff; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; color: var(--text); }
+  .slider { flex: 1; max-width: 170px; height: 6px; border-radius: 9px; background: rgba(255,255,255,0.14); position: relative; }
+  .slider b { position: absolute; inset: 0 auto 0 0; border-radius: 9px; background: var(--accent); }
+  .slider b::after { content: ""; position: absolute; right: -7px; top: -5px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+  .toggle { width: 38px; height: 20px; border-radius: 99px; background: rgba(125, 255, 240, 0.45); position: relative; }
+  .toggle::after { content: ""; position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .toggle.off { background: rgba(255,255,255,0.16); }
+  .toggle.off::after { right: auto; left: 3px; }
+  .chat { margin-top: 12px; font-family: var(--mono); font-size: 11.5px; background: rgba(0,0,0,0.5); border-radius: 6px; padding: 8px 10px; color: var(--dim); }
+  .chat em { color: var(--accent); font-style: normal; }
+
+  /* UI Theme swatches */
+  .themes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%; max-width: 440px; }
+  .tw { border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.45); font-size: 12px; }
+  .tw .wt { padding: 7px 10px; font-weight: 900; color: #fff; }
+  .tw .wb { padding: 10px; display: grid; gap: 7px; }
+  .tw .b { border-radius: 6px; padding: 6px 8px; font-weight: 700; color: #fff; }
+  .tw .sw { display: flex; gap: 4px; margin-top: 2px; }
+  .tw .sw i { flex: 1; height: 12px; border-radius: 3px; }
+  .tw small { opacity: 0.75; }
+
+  /* Movie Block screen */
+  .screen { width: 100%; max-width: 440px; border-radius: 12px; padding: 7px; background: #15181f;
+            box-shadow: 0 0 0 2px rgba(125, 255, 240, 0.45), 0 20px 50px rgba(0,0,0,0.6);
+            transform: perspective(900px) rotateY(-9deg) rotateX(3deg); }
+  .screen .in { background: #0a0c11; border-radius: 7px; padding: 8px; }
+  .screen .top { display: flex; gap: 5px; margin-bottom: 7px; }
+  .screen .top span { height: 18px; border-radius: 4px; background: #2c4669; font-size: 9.5px; font-weight: 800; color: #fff; display: flex; align-items: center; padding: 0 6px; }
+  .screen .top .src { background: var(--title); }
+  .screen .top .q { flex: 1; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); color: var(--dim); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .grid i { aspect-ratio: 1.5; border-radius: 4px; position: relative; overflow: hidden; }
+  .grid i::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26%; background: rgba(0,0,0,0.55); }
+  .grid i:nth-child(1) { background: linear-gradient(135deg, #3b5ba9, #6a3d9a); }
+  .grid i:nth-child(2) { background: linear-gradient(135deg, #1e7a6f, #2e4d7f); }
+  .grid i:nth-child(3) { background: linear-gradient(135deg, #8a4f2c, #5b2f63); }
+  .grid i:nth-child(4) { background: linear-gradient(135deg, #2f5f8f, #1b2f55); }
+  .grid i:nth-child(5) { background: linear-gradient(135deg, #6b2f4e, #2f3c7a); }
+  .grid i:nth-child(6) { background: linear-gradient(135deg, #2d6a4f, #24476b); }
+  .grid i:nth-child(7) { background: linear-gradient(135deg, #4e3d8f, #7a3a5c); }
+  .grid i:nth-child(8) { background: linear-gradient(135deg, #305a7a, #5a2f2f); }
+  .ctrl { display: flex; gap: 5px; align-items: center; margin-top: 7px; }
+  .ctrl span { height: 14px; min-width: 22px; border-radius: 3px; background: #2c4669; }
+  .ctrl .play { background: var(--title); }
+  .ctrl .seek { flex: 1; height: 5px; background: rgba(255,255,255,0.15); position: relative; border-radius: 9px; }
+  .ctrl .seek::before { content: ""; position: absolute; inset: 0 55% 0 0; background: var(--accent); border-radius: 9px; }
+  .floor { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); width: 60%; height: 18px; border-radius: 50%;
+           background: radial-gradient(ellipse, rgba(125,255,240,0.25), transparent 70%); }
+
+  /* Mod Manager window */
+  .mm .item { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; margin: 3px 0; background: rgba(255,255,255,0.04); }
+  .mm .item.sel { background: rgba(55, 143, 249, 0.28); }
+  .mm .cb { width: 15px; height: 15px; border-radius: 3px; border: 2px solid var(--accent); flex: none; position: relative; }
+  .mm .cb.on { background: var(--accent); }
+  .mm .cb.on::after { content: ""; position: absolute; left: 3px; top: 0; width: 4px; height: 8px; border: solid #08101f; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .mm .v { margin-left: auto; color: var(--dim); font-family: var(--mono); font-size: 11px; }
+  .mm .warn { margin-top: 9px; font-size: 11.5px; color: var(--gold); }
+  .mm .btns { display: flex; gap: 6px; margin-top: 10px; }
+  .mm .btns span { flex: 1; text-align: center; padding: 6px; border-radius: 6px; background: rgba(119, 180, 255, 0.3); font-weight: 800; font-size: 11.5px; }
+  .mm .btns span.go { background: var(--title); }
+
+  /* SVG visuals */
+  .visual svg.art { width: 100%; max-width: 440px; height: auto; }
+
+  /* ------------------------------------------------ install */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; counter-reset: s; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; position: relative; }
+  .step::before { counter-increment: s; content: counter(s); position: absolute; top: -14px; left: 18px; width: 30px; height: 30px; border-radius: 50%;
+                  background: var(--title); font-weight: 900; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(55,143,249,0.5); }
+  .step h4 { margin: 8px 0 6px; font-size: 18px; }
+  .step p { margin: 0; color: var(--dim); font-size: 15.5px; }
+  .callout { margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; color: var(--dim); font-size: 15.5px; }
+  .callout b { color: var(--text); }
+
+  /* ------------------------------------------------ modders */
+  .dev { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 860px) { .dev { grid-template-columns: 1fr; } }
+  pre { margin: 0; background: #060a13; border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; overflow-x: auto;
+        font: 13.5px/1.55 var(--mono); color: #cfd6ff; }
+  pre .k { color: #7dfff0; } pre .s { color: #ffd36e; } pre .c { color: #6c7699; }
+  .dev ul { margin: 0; padding-left: 20px; color: var(--dim); }
+  .dev li { margin: 6px 0; }
+  .dev li b { color: var(--text); }
+
+  footer { border-top: 1px solid var(--line); padding: 30px 0 50px; color: var(--dim); font-size: 14px; margin-top: 30px; }
+  footer p { margin: 6px 0; }
+</style>
+</head>
+<body>
+
+<div class="adult">18+ &middot; These mods are adult content, like the game. You need your own copy of KoboldKare.</div>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="#378ff9"/><path d="M9 22V10l7 6 7-6v12" fill="none" stroke="#7dfff0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      KoboldKare Mod Loader
+    </a>
+    <a class="link" href="#mods">Mods</a>
+    <a class="link" href="#install">Install</a>
+    <a class="link opt" href="#modders">For modders</a>
+    <a class="link opt" href="https://github.com/scottricity/koboldkare-modloader">GitHub</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Mods for <span>KoboldKare</span>,<br>one zip away.</h1>
+    <p class="lead">A mod manager, a small framework and a handful of mods, all on BepInEx&nbsp;5. Unzip into the game folder, tick what you want, and play.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/scottricity/koboldkare-modloader/releases">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+        Download the loader
+      </a>
+      <a class="btn ghost" href="#mods">See the mods</a>
+    </div>
+    <div class="facts">
+      <span><b>6</b> tools &amp; mods</span>
+      <span>Built on <b>BepInEx 5</b></span>
+      <span>Settings in an in-game <b>F8 panel</b></span>
+      <span><b>Open source</b>, no game files included</span>
+    </div>
+  </div>
+</header>
+
+<section id="mods">
+  <div class="wrap">
+    <h2>The mods</h2>
+    <p class="sub">Everything is in <code>KoboldKare-ModLoader.zip</code>. Each mod also has its own zip if you already have BepInEx. Most have chat commands and a tab in the <kbd>F8</kbd> mod panel.</p>
+
+    <div class="mods">
+
+      <!-- ============================================ Mod Manager -->
+      <article class="mod" id="mod-manager">
+        <div class="info">
+          <div class="bar">
+            <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="6" width="22" height="20" rx="3"/><path d="m10 13 2 2 4-4M10 21h12"/></svg>
+            <h3>Mod Manager</h3><span class="tag">Windows app</span>
+          </div>
+          <div class="body">
+            <p>Turn mods on and off without touching folders. Run <code>KoboldKare Mod Manager.exe</code> in the game folder.</p>
+            <ul>
+              <li>Tick or untick a mod and <b>Save</b>. Ticking a mod also ticks the mods it needs.</li>
+              <li>Shows what each mod needs, what needs it, its config file and whether it loaded last time.</li>
+              <li>Warns about missing dependencies, old versions, duplicate IDs and errors from the last run.</li>
+              <li><b>Add Mod...</b> (or drag and drop) installs a <code>.dll</code> or <code>.zip</code>, including Thunderstore layouts.</li>
+              <li><b>Save and Play</b> starts the game through Steam. Untick <b>Load mods</b> to play without any.</li>
+            </ul>
+            <div class="meta">
+              <a class="btn small" href="https://github.com/scottricity/koboldkare-modloader/releases">Get it from Releases</a>
+              <span class="needs">Included in the loader zip</span>
+            </div>
+          </div>
+        </div>
+        <div class="visual">
+          <div class="win mm">
+            <div class="wt">KoboldKare Mod Manager<i></i></div>
+            <div class="wb">
+              <div class="item"><span class="cb on"></span>ModKit<span class="v">1.0.0</span></div>
+              <div class="item"><span class="cb on"></span>NPC AI<span class="v">2.0.0</span></div>
+              <div class="item sel"><span class="cb on"></span>Movie Block<span class="v">1.0.0</span></div>
+              <div class="item"><span class="cb"></span>UI Theme<span class="v">1.0.0</span></div>
+              <div class="item"><span class="cb on"></span>Voice Chat<span class="v">1.0.0</span></div>
+              <div class="warn">&#9888; Voice Chat: start the game through Steam</div>
+              <div class="btns"><span>Add Mod...</span><span>Save</span><span class="go">Save and Play</span></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ============================================ ModKit -->
+      <article class="mod" id="modkit">
+        <div class="info">
+          <div class="bar">
+            <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 5h6v4a3 3 0 1 0 0 6v4h-4a3 3 0 1 1-6 0H5v-6a3 3 0 1 0 0-6V5h8"/><path d="M19 19h8v8h-8z" opacity=".6"/></svg>
+            <h3>ModKit</h3><span class="tag">Framework</span>
+          </div>
+          <div class="body">
+            <p>The base the other mods build on. You need it for every mod here, and modders can build on it too.</p>
+            <ul>
+              <li>The shared <kbd>F8</kbd> mod panel: one tab per mod, with sliders and toggles that save automatically.</li>
+              <li>Chat commands with autocomplete. <code>/mods</code> lists every mod's commands and panel tabs.</li>
+              <li>Map-load and per-frame events that keep working across map changes.</li>
+              <li>A start-up self-check that names any game code a mod needs but the game stripped out.</li>
+            </ul>
+            <div class="meta">
+              <a class="btn small" href="https://github.com/scottricity/koboldkare-modloader/raw/main/mods/ModKit.zip">Download ModKit.zip</a>
+              <span class="needs">Needs nothing</span>
+            </div>
+          </div>
+        </div>
+        <div class="visual">
+          <div class="win">
+            <div class="wt">Mods<i></i></div>
+            <div class="wb">
+              <div class="tabs"><span>NPC AI</span><span class="on">Voice Chat</span><span>Movie Block</span><span>Themes</span></div>
+              <div class="row">Volume <span class="slider"><b style="width:72%"></b></span></div>
+              <div class="row">Hearing distance <span class="slider"><b style="width:45%"></b></span></div>
+              <div class="row">Muffle voices behind walls <span class="toggle"></span></div>
+              <div class="row">Open mic <span class="toggle off"></span></div>
+              <div class="chat">&gt; /mods<br><em>KoboldKare.VoiceChat</em> /voice&nbsp; on | off | mode | test ...</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ============================================ NPC AI -->
+      <article class="mod" id="npc-ai">
+        <div class="info">
+          <div class="bar">
+            <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="4"/><circle cx="22" cy="10" r="4"/><path d="M4 26c0-4 3-7 6-7s6 3 6 7M16 26c0-4 3-7 6-7s6 3 6 7"/></svg>
+            <h3>NPC AI</h3><span class="tag">Gameplay</span>
+          </div>
+          <div class="body">
+            <p>NPC kobolds stop standing around. They wander the map, take breaks, and pair up with each other.</p>
+            <ul>
+              <li>NPCs roam to random spots and idle for a while between walks.</li>
+              <li>Now and then two NPCs find each other and head to an animation station, or pair up right where they stand.</li>
+              <li>Tune wander distance, idle and pairing times, and how often they pair, in the <kbd>F8</kbd> panel.</li>
+              <li><code>/npc-ai on</code>, <code>off</code> or <code>status</code>. Only the host runs it.</li>
+            </ul>
+            <p class="note">For proper path-finding, copy <code>UnityEngine.AIModule.dll</code> from a Unity 2021.3.45f2 install into <code>BepInEx\unstripped_corlib</code>. Without it, NPCs walk straight toward where they're going.</p>
+            <div class="meta">
+              <a class="btn small" href="https://github.com/scottricity/koboldkare-modloader/raw/main/mods/NpcAI.zip">Download NpcAI.zip</a>
+              <span class="needs">Needs ModKit</span>
+            </div>
+          </div>
+        </div>
+        <div class="visual">
+          <svg class="art" viewBox="0 0 440 300" aria-label="NPCs wandering between stations">
+            <defs>
+              <pattern id="g" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="rgba(125,255,240,0.07)"/></pattern>
+            </defs>
+            <rect width="440" height="300" fill="url(#g)"/>
+            <path d="M60 230 C 120 160, 150 250, 210 190 S 300 80, 360 120" fill="none" stroke="#7dfff0" stroke-width="2.5" stroke-dasharray="7 7" opacity=".7"/>
+            <path d="M80 70 C 150 90, 170 40, 250 70 S 330 170, 360 130" fill="none" stroke="#378ff9" stroke-width="2.5" stroke-dasharray="7 7" opacity=".8"/>
+            <rect x="330" y="96" width="70" height="52" rx="10" fill="rgba(255,211,110,0.14)" stroke="#ffd36e" stroke-width="2"/>
+            <text x="365" y="166" fill="#ffd36e" font-size="12" font-family="Nunito" font-weight="800" text-anchor="middle">station</text>
+            <rect x="30" y="250" width="56" height="30" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.18)"/>
+            <rect x="180" y="30" width="56" height="30" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.18)"/>
+            <g><circle cx="60" cy="230" r="11" fill="#7dfff0"/><circle cx="60" cy="230" r="20" fill="none" stroke="#7dfff0" opacity=".3"/></g>
+            <g><circle cx="80" cy="70" r="11" fill="#378ff9"/><circle cx="80" cy="70" r="20" fill="none" stroke="#378ff9" opacity=".35"/></g>
+            <circle cx="352" cy="122" r="9" fill="#7dfff0"/><circle cx="374" cy="122" r="9" fill="#378ff9"/>
+            <path d="M363 104 l-4 -6 a4 4 0 0 1 8 0 a4 4 0 0 1 8 0 l-4 6 -4 5z" fill="#ff7d77" transform="translate(-4 -4)"/>
+            <circle cx="250" cy="250" r="9" fill="#a6abc8" opacity=".6"/>
+            <text x="250" y="276" fill="#a6abc8" font-size="12" font-family="Nunito" font-weight="700" text-anchor="middle">idle</text>
+          </svg>
+        </div>
+      </article>
+
+      <!-- ============================================ UI Theme -->
+      <article class="mod" id="ui-theme">
+        <div class="info">
+          <div class="bar">
+            <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4a12 12 0 1 0 0 24c2 0 2-2 1-3s0-3 2-3h3a6 6 0 0 0 6-6c0-7-5-12-12-12z"/><circle cx="10" cy="14" r="1.6" fill="#fff"/><circle cx="14" cy="9" r="1.6" fill="#fff"/><circle cx="20" cy="9" r="1.6" fill="#fff"/></svg>
+            <h3>UI Theme</h3><span class="tag">Looks</span>
+          </div>
+          <div class="body">
+            <p>Recolour the whole game interface. Pick a theme, import one, or make your own with a live preview.</p>
+            <ul>
+              <li>Choose a theme in <b>Options &gt; Graphics &gt; UI Theme</b>, the <kbd>F8</kbd> panel, or <code>/theme</code>.</li>
+              <li><b>Create theme</b> opens a colour editor with a live preview. Your themes keep the game's frame shapes and can be edited later.</li>
+              <li>Import themes from a <code>.zip</code> or a folder. Themes can set fonts and images too.</li>
+              <li>Comes with the <b>Night Sky</b> sample theme.</li>
+            </ul>
+            <div class="meta">
+              <a class="btn small" href="https://github.com/scottricity/koboldkare-modloader/raw/main/mods/UITheme.zip">Download UITheme.zip</a>
+              <span class="needs">Needs ModKit</span>
+            </div>
+          </div>
+        </div>
+        <div class="visual">
+          <div class="themes">
+            <div class="tw" style="background:rgba(0,0,0,0.8)">
+              <div class="wt" style="background:#378ff9">Default</div>
+              <div class="wb">
+                <div class="b" style="background:rgba(63,96,136,0.94)">Resume</div>
+                <div class="b" style="background:rgba(119,180,255,0.3)">Options</div>
+                <div class="b" style="background:rgba(255,125,119,0.3)">Quit</div>
+                <div class="sw"><i style="background:#378ff9"></i><i style="background:#7dfff0"></i><i style="background:#1c78b6"></i><i style="background:#edeaff"></i></div>
+                <small style="color:#edeaff">game colours</small>
+              </div>
+            </div>
+            <div class="tw" style="background:#121a33">
+              <div class="wt" style="background:#5b4ab8">Night Sky</div>
+              <div class="wb">
+                <div class="b" style="background:#2c3a6b">Resume</div>
+                <div class="b" style="background:rgba(78,111,214,0.7)">Options</div>
+                <div class="b" style="background:rgba(194,79,107,0.7)">Quit</div>
+                <div class="sw"><i style="background:#5b4ab8"></i><i style="background:#ffd36e"></i><i style="background:#b9a8ff"></i><i style="background:#e6e9ff"></i></div>
+                <small style="color:#ffd36e">sample theme</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ============================================ Voice Chat -->
+      <article class="mod" id="voice-chat">
+        <div class="info">
+          <div class="bar">
+            <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="12" y="4" width="8" height="15" rx="4"/><path d="M7 15a9 9 0 0 0 18 0M16 24v4M11 28h10"/></svg>
+            <h3>Voice Chat</h3><span class="tag">Multiplayer</span>
+          </div>
+          <div class="body">
+            <p>Proximity voice chat. Voices come from each player's kobold and fade with distance.</p>
+            <ul>
+              <li>Hold <kbd>V</kbd> to talk, or switch to toggle or open mic.</li>
+              <li>Voices behind walls sound muffled, and pick up the map's reverb like other game sounds.</li>
+              <li>The bottom-left corner shows who's talking. Mute anyone with <code>/voice mute &lt;name&gt;</code>.</li>
+              <li>Test it alone: <code>/voice block</code> drops a cube that plays your mic back in 3D.</li>
+            </ul>
+            <p class="note">Everyone who wants to talk or listen needs the mod. It uses Steam voice, so start the game through Steam.</p>
+            <div class="meta">
+              <a class="btn small" href="https://github.com/scottricity/koboldkare-modloader/raw/main/mods/VoiceChat.zip">Download VoiceChat.zip</a>
+              <span class="needs">Needs ModKit</span>
+            </div>
+          </div>
+        </div>
+        <div class="visual">
+          <svg class="art" viewBox="0 0 440 300" aria-label="Voice fading with distance">
+            <circle cx="150" cy="150" r="130" fill="none" stroke="#7dfff0" stroke-opacity=".12" stroke-width="2"/>
+            <circle cx="150" cy="150" r="95" fill="none" stroke="#7dfff0" stroke-opacity=".22" stroke-width="2"/>
+            <circle cx="150" cy="150" r="60" fill="none" stroke="#7dfff0" stroke-opacity=".4" stroke-width="2"/>
+            <circle cx="150" cy="150" r="22" fill="#378ff9"/>
+            <path d="M143 141v18M150 135v30M157 141v18" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="230" cy="110" r="14" fill="#7dfff0"/>
+            <circle cx="300" cy="200" r="14" fill="#7dfff0" opacity=".5"/>
+            <rect x="330" y="70" width="14" height="150" rx="4" fill="rgba(255,255,255,0.12)"/>
+            <circle cx="390" cy="150" r="14" fill="#a6abc8" opacity=".35"/>
+            <text x="390" y="182" fill="#a6abc8" font-size="12" font-family="Nunito" font-weight="700" text-anchor="middle">muffled</text>
+            <g transform="translate(18 248)">
+              <rect width="150" height="34" rx="8" fill="rgba(0,0,0,0.6)"/>
+              <circle cx="18" cy="17" r="6" fill="#7dfff0"/>
+              <text x="32" y="22" fill="#edeaff" font-size="14" font-family="Nunito" font-weight="800">Kobold talking</text>
+            </g>
+          </svg>
+        </div>
+      </article>
+
+      <!-- ============================================ Movie Block -->
+      <article class="mod" id="movie-block">
+        <div class="info">
+          <div class="bar">
+            <svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="24" height="16" rx="3"/><path d="m14 11 5 3-5 3zM11 27h10"/></svg>
+            <h3>Movie Block</h3><span class="tag">New &middot; early</span>
+          </div>
+          <div class="body">
+            <p>A floating video screen in the game world. Browse e621 or rule34.xxx by tag and watch videos with 3D sound.</p>
+            <ul>
+              <li><code>/movieblock e621</code> or <code>/movieblock r34</code> puts the screen in front of you, turned to face you.</li>
+              <li><kbd>F7</kbd> switches between using the screen and playing. <kbd>Esc</kbd> also takes you back.</li>
+              <li>Tag search with autocomplete, sort orders, a thumbnail grid, seek, loop and volume.</li>
+              <li>Click a video's tags to add them to your search, or exclude them. Only you see the screen.</li>
+            </ul>
+            <p class="note">Needs <code>UnityEngine.VideoModule.dll</code> from a Unity 2021.3.45f2 install in <code>BepInEx\unstripped_corlib</code>. rule34.xxx also needs a free API key (<code>/movieblock r34key</code>). Content involving minors is always filtered out.</p>
+            <div class="meta">
+              <a class="btn small" href="https://github.com/scottricity/koboldkare-modloader/raw/main/mods/MovieBlock.zip">Download MovieBlock.zip</a>
+              <span class="needs">Needs ModKit</span>
+            </div>
+          </div>
+        </div>
+        <div class="visual">
+          <div class="screen">
+            <div class="in">
+              <div class="top"><span class="src">e621</span><span class="q">kobold solo</span><span>Search</span><span>Top score</span></div>
+              <div class="grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="ctrl"><span></span><span class="play"></span><span></span><span class="seek"></span><span></span></div>
+            </div>
+          </div>
+          <div class="floor"></div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install in a minute</h2>
+    <p class="sub">Works with the Steam version of KoboldKare on Windows.</p>
+    <div class="steps">
+      <div class="step"><h4>Download</h4><p>Get <code>KoboldKare-ModLoader.zip</code> from the <a href="https://github.com/scottricity/koboldkare-modloader/releases">Releases page</a>.</p></div>
+      <div class="step"><h4>Unzip into the game</h4><p>Close the game. Unzip into the KoboldKare folder (Steam: right-click the game, <b>Manage &gt; Browse local files</b>) and say yes to replacing files.</p></div>
+      <div class="step"><h4>Pick and play</h4><p>Run <code>KoboldKare Mod Manager.exe</code>, tick the mods you want, and click <b>Save and Play</b>.</p></div>
+    </div>
+    <div class="callout">
+      <b>Already have BepInEx?</b> Grab <code>KoboldKare-ModManager.zip</code> and just the mod zips you want, then unzip them into the game folder or use <b>Add Mod...</b> in the Mod Manager.
+      Unzipping a newer version over an old one is safe, and your settings in <code>BepInEx\config</code> are kept.
+    </div>
+  </div>
+</section>
+
+<section id="modders">
+  <div class="wrap">
+    <h2>For modders</h2>
+    <p class="sub">Every mod here is open source and built on ModKit. Make your own in a few lines.</p>
+    <div class="dev">
+<pre><span class="c">// A chat command and an F8 panel tab with ModKit</span>
+[<span class="k">BepInPlugin</span>(<span class="s">"me.hello"</span>, <span class="s">"Hello"</span>, <span class="s">"1.0.0"</span>)]
+[<span class="k">BepInDependency</span>(ModKit.Guid)]
+<span class="k">public class</span> HelloPlugin : BaseUnityPlugin {
+    <span class="k">void</span> Awake() {
+        ModCommands.Register(<span class="s">"/hello"</span>, <span class="s">"Say hello"</span>,
+            ctx =&gt; ctx.Reply(<span class="s">"Hello "</span> + ctx.Caller.name));
+
+        ModPanel.AddPage(<span class="s">"Hello"</span>, <span class="s">"ico_star"</span>, page =&gt; {
+            page.Header(<span class="s">"Settings"</span>);
+            page.Toggle(<span class="s">"Enabled"</span>, enabled);
+        });
+    }
+}</pre>
+      <ul>
+        <li><b>Start a mod:</b> <code>new-mod.ps1 -Name MyMod</code> copies the example mod into <code>mods/MyMod</code>.</li>
+        <li><b>Build:</b> <code>dotnet build mods/MyMod -c Release</code> installs it into the game. While the game runs, add <code>-p:Deploy=false</code> and run <code>deploy.ps1</code> later.</li>
+        <li><b>Safe by default:</b> mods compile against the game's own stripped DLLs, so anything the game removed fails at build time, not in-game.</li>
+        <li>The <a href="https://github.com/scottricity/koboldkare-modloader#readme">README</a> covers the ModKit API and this game's gotchas.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Built on <a href="https://github.com/BepInEx/BepInEx">BepInEx</a>, <a href="https://github.com/BepInEx/HarmonyX">HarmonyX</a>, <a href="https://github.com/MonoMod/MonoMod">MonoMod</a>, <a href="https://github.com/jbevain/cecil">Mono.Cecil</a>, <a href="https://github.com/NeighTools/UnityDoorstop">UnityDoorstop</a> and the <a href="https://github.com/mono/mono">Mono</a> class libraries.</p>
+    <p>Not affiliated with the developers of KoboldKare, e621 or rule34.xxx. No game files are included. Adult content (18+).</p>
+    <p><a href="https://github.com/scottricity/koboldkare-modloader">github.com/scottricity/koboldkare-modloader</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
