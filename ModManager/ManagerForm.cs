@@ -54,10 +54,12 @@ namespace KoboldKareModManager
                 return;
             }
             // Mono.Cecil comes with BepInEx; use that copy rather than shipping another.
+            // UnsafeLoadFrom, not LoadFrom: a BepInEx zip unpacked with Explorer keeps the "downloaded from the internet"
+            // mark, and .NET Framework refuses to LoadFrom such a file (FileLoadException, HRESULT 0x80131515).
             AppDomain.CurrentDomain.AssemblyResolve += (s, e) =>
             {
                 string file = Path.Combine(game.Core, new AssemblyName(e.Name).Name + ".dll");
-                return File.Exists(file) ? Assembly.LoadFrom(file) : null;
+                return File.Exists(file) ? Assembly.UnsafeLoadFrom(file) : null;
             };
             if (!Directory.Exists(game.BepInEx))
             {
