@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared settings and game references come from ../../Directory.Build.props. -->
+  <PropertyGroup>
+    <AssemblyName>KoboldKare.ScottsTools</AssemblyName>
+    <RootNamespace>ScottsTools</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Scott's toolbox. First tool: a rocket launcher (plus a cum version) whose rockets blast kobolds away instead of hurting them.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.ImageConversionModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.AudioModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\com.naelstrof.skinnedmeshdecals.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\NetStack.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\naelstrof.Modding.dll" Private="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Model and textures ship inside the DLL, so the mod stays a single file. -->
+    <EmbeddedResource Include="Assets\rpg.obj" LogicalName="ScottsTools.rpg.obj" />
+    <EmbeddedResource Include="Assets\rpg_albedo.jpg" LogicalName="ScottsTools.rpg_albedo.jpg" />
+    <EmbeddedResource Include="Assets\rpg_normal.jpg" LogicalName="ScottsTools.rpg_normal.jpg" />
+    <EmbeddedResource Include="Assets\rpg_metal_smooth.png" LogicalName="ScottsTools.rpg_metal_smooth.png" />
+  </ItemGroup>
+</Project>

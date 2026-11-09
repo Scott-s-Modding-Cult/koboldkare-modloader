@@ -24,3 +24,6 @@ UnityEngine.AIModule.dll is Unity's and is not included. See README.md.
 
 The Mod Manager, ModKit, NPC AI and UI Theme are made for this repository. The Night Sky theme is a
 colours-only sample.
+
+Scott's Tools uses the "Simplified RPG" 3D model and textures (2018) for its rocket launchers, resized and
+embedded in KoboldKare.ScottsTools.dll.
