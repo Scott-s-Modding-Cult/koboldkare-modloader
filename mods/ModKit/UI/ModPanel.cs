@@ -111,7 +111,7 @@ namespace KoboldKare.ModKit {
         }
 
         private static Key? GetKey() {
-            string name = ModKitPlugin.PanelHotkey.Value;
+            string name = ModKitPlugin.PanelHotkeyName;
             if (name != parsedKeyName) {
                 parsedKeyName = name;
                 parsedKey = Enum.TryParse((name ?? "").Trim(), true, out Key k) && k != Key.None ? k : (Key?)null;
@@ -286,7 +286,7 @@ namespace KoboldKare.ModKit {
                 foreach (var page in pages) {
                     page.Builder?.SyncFromConfig();
                 }
-                footerText.text = $"{ModKitPlugin.PanelHotkey.Value} to close  ·  changes save automatically";
+                footerText.text = $"{ModKitPlugin.PanelHotkeyName} to close  ·  changes save automatically";
                 nextRefresh = 0f;
             }
 

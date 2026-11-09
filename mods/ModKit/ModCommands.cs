@@ -100,7 +100,7 @@ namespace KoboldKare.ModKit {
 
         internal static void RegisterBuiltins() {
             Register("/mods", "List ModKit mods' commands and panel pages.", ctx => {
-                ctx.Reply($"<b>ModKit {ModKit.Version}</b>  (panel: {ModKitPlugin.PanelHotkey.Value})");
+                ctx.Reply($"<b>ModKit {ModKit.Version}</b>  (panel: {ModKitPlugin.PanelHotkeyName})");
                 foreach (var group in Registered.GroupBy(r => r.Owner)) {
                     ctx.Reply($"<#7dfff0>{group.Key}</color>");
                     foreach (var cmd in group) {
