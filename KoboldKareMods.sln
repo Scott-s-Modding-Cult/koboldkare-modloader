@@ -3,15 +3,17 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModKit", "ModKit\ModKit.csproj", "{63F07E2F-8E97-4FBD-B22A-840638E82862}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModKit", "mods\ModKit\ModKit.csproj", "{63F07E2F-8E97-4FBD-B22A-840638E82862}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NpcAI", "NpcAI\NpcAI.csproj", "{8615863B-E7AA-4B46-BB2D-7AE696F440C4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NpcAI", "mods\NpcAI\NpcAI.csproj", "{8615863B-E7AA-4B46-BB2D-7AE696F440C4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleMod", "ExampleMod\ExampleMod.csproj", "{3AF0C204-4DA2-44AC-8B8D-30BA6DACC476}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleMod", "mods\ExampleMod\ExampleMod.csproj", "{3AF0C204-4DA2-44AC-8B8D-30BA6DACC476}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UITheme", "UITheme\UITheme.csproj", "{85D3DEBB-26F2-460D-AE66-C4185AD485AE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UITheme", "mods\UITheme\UITheme.csproj", "{85D3DEBB-26F2-460D-AE66-C4185AD485AE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModManager", "ModManager\ModManager.csproj", "{ACC76BDB-2B0C-4C98-9FF0-D4265BE9CEA5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoiceChat", "mods\VoiceChat\VoiceChat.csproj", "{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -83,6 +85,18 @@ Global
 		{ACC76BDB-2B0C-4C98-9FF0-D4265BE9CEA5}.Release|x64.Build.0 = Release|Any CPU
 		{ACC76BDB-2B0C-4C98-9FF0-D4265BE9CEA5}.Release|x86.ActiveCfg = Release|Any CPU
 		{ACC76BDB-2B0C-4C98-9FF0-D4265BE9CEA5}.Release|x86.Build.0 = Release|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Debug|x64.Build.0 = Debug|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Debug|x86.Build.0 = Debug|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|x64.ActiveCfg = Release|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|x64.Build.0 = Release|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|x86.ActiveCfg = Release|Any CPU
+		{AFD8955F-CF3B-4CA2-8403-CC03DDCF8E05}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

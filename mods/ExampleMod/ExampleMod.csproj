@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Shared settings and game references come from ../Directory.Build.props. -->
+  <!-- Shared settings and game references come from ../../Directory.Build.props. -->
   <PropertyGroup>
     <AssemblyName>KoboldKare.ExampleMod</AssemblyName>
     <RootNamespace>ExampleMod</RootNamespace>

@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared settings and game references come from ../../Directory.Build.props. -->
+  <PropertyGroup>
+    <AssemblyName>KoboldKare.VoiceChat</AssemblyName>
+    <RootNamespace>VoiceChat</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Proximity voice chat over Steam voice. Push-to-talk (V by default), toggle or open mic; voices come from each player's kobold. Everyone who wants to talk or listen needs this mod. Command /voice and an F8 panel tab.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Extra game assemblies only this mod needs: audio playback and Steam voice. -->
+    <Reference Include="$(ManagedDir)\UnityEngine.AudioModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\com.rlabrecque.steamworks.net.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\SteamManager.dll" Private="false" />
+  </ItemGroup>
+</Project>

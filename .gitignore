@@ -16,4 +16,4 @@ GameIcons/
 *.log
 
 # Local-only test themes (copied into the game's BepInEx/themes by the UITheme build, never published).
-UITheme/test-themes/
+mods/UITheme/test-themes/

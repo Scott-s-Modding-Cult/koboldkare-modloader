@@ -2,8 +2,8 @@
 #
 #   powershell -ExecutionPolicy Bypass -File ModSource\new-mod.ps1 -Name MyMod [-DisplayName "My Mod"]
 #
-# Result: ModSource\MyMod\ with project KoboldKare.MyMod, namespace MyMod, plugin GUID koboldkare.mymod,
-# added to KoboldKareMods.sln. Build it with:  dotnet build ModSource\MyMod -c Release
+# Result: ModSource\mods\MyMod\ with project KoboldKare.MyMod, namespace MyMod, plugin GUID koboldkare.mymod,
+# added to KoboldKareMods.sln. Build it with:  dotnet build ModSource\mods\MyMod -c Release
 
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z][A-Za-z0-9]*$')][string]$Name,
@@ -12,10 +12,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$template = Join-Path $root 'ExampleMod'
-$target = Join-Path $root $Name
+$template = Join-Path $root 'mods\ExampleMod'
+$target = Join-Path $root "mods\$Name"
 
-if (Test-Path $target) { throw "ModSource\$Name already exists." }
+if (Test-Path $target) { throw "ModSource\mods\$Name already exists." }
 
 New-Item -ItemType Directory $target | Out-Null
 $lower = $Name.ToLowerInvariant()
@@ -44,5 +44,5 @@ foreach ($file in $files) {
 $sln = Join-Path $root 'KoboldKareMods.sln'
 if (Test-Path $sln) { dotnet sln $sln add (Join-Path $target "$Name.csproj") | Out-Null }
 
-Write-Host "Created ModSource\$Name. Build: dotnet build `"$target`" -c Release" -ForegroundColor Green
+Write-Host "Created ModSource\mods\$Name. Build: dotnet build `"$target`" -c Release" -ForegroundColor Green
 Write-Host "(Close the game first, or add -p:Deploy=false and run deploy.ps1 later.)"

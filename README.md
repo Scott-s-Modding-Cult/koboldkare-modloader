@@ -31,6 +31,13 @@ To play without mods, untick **Load mods (BepInEx)** in the Mod Manager.
 | ModKit | Framework the other mods build on: chat commands, the F8 mod panel, settings and map-load events | |
 | NPC AI | NPC kobolds roam the map and pair up at animation stations. `/npc-ai` and an F8 panel tab | ModKit |
 | UI Theme | Recolours the game UI with themes. Pick one in Options > Graphics > UI Theme, the F8 panel, or `/theme`. **Create theme** (under Import theme, or in the F8 panel) opens a colour editor with a live preview; your themes keep the game's frame shapes and show up in the dropdown, and **Edit theme** changes them later. Comes with the Night Sky sample theme | ModKit |
+| Voice Chat | Proximity voice chat: voices come from each player's kobold and fade with distance. Push-to-talk (**V**), toggle or open mic; volume, hearing distance, mute and a mic test (hear yourself) in the F8 panel or `/voice`. To test alone, `/voice block` (or **Place test block** in the panel) drops a cube that plays your mic back in 3D, so you can walk around it and hear the falloff. Voices behind walls sound muffled and quieter (adjustable, or off), and they pick up the map's reverb zones like other game sounds. Shows who's talking in the bottom-left corner | ModKit |
+
+**Voice Chat notes:** everyone who wants to talk or listen needs the mod (players without it can still join, they
+just don't hear voice). It uses Steam voice, so start the game through Steam; your mic is the one picked in
+**Steam > Settings > Voice**. Voice goes over the game's own multiplayer (Photon) connection, which the game's
+developer pays for, so it only goes to players who have the mod and is sent about 10 times a second while you talk.
+Change the talk key with `/voice key B` (or `TalkKey` in `BepInEx/config/koboldkare.voicechat.cfg`).
 
 **NPC AI and path-finding:** the game also ships a stripped `UnityEngine.AIModule.dll` without NavMesh path
 queries. That file is Unity's, so it isn't included here. Without it NPC AI walks straight toward its target
@@ -64,14 +71,16 @@ Open `KoboldKareMods.sln` in Visual Studio / Rider / VS Code, or use the `dotnet
 
 | Folder | What it is | Installs to |
 |---|---|---|
-| `ModKit/` | Framework plugin every mod here builds on | `BepInEx/plugins/ModKit/` |
-| `NpcAI/` | NPC AI mod | `BepInEx/plugins/NpcAI/` |
-| `UITheme/` | UI Theme mod | `BepInEx/plugins/UITheme/` |
-| `ExampleMod/` | Template to copy (not installed) | — |
+| `mods/ModKit/` | Framework plugin every mod here builds on | `BepInEx/plugins/ModKit/` |
+| `mods/NpcAI/` | NPC AI mod | `BepInEx/plugins/NpcAI/` |
+| `mods/UITheme/` | UI Theme mod | `BepInEx/plugins/UITheme/` |
+| `mods/VoiceChat/` | Voice Chat mod | `BepInEx/plugins/VoiceChat/` |
+| `mods/ExampleMod/` | Template to copy (not installed) | — |
+| `mods/<Mod>.zip` | Built mod zips, made by `make_release_zips.ps1` | — |
 | `ModManager/` | The Mod Manager (Windows Forms, .NET Framework 4.7.2). Building copies it to the game folder; if it's open, that copy is skipped with a warning | `KoboldKare Mod Manager.exe` |
 | `ThemeSamples/` | Sample themes (Night Sky, as a folder and as an importable zip) | — |
 
-**Test themes:** themes in `UITheme/test-themes/` are local only: git ignores them and they're never bundled or
+**Test themes:** themes in `mods/UITheme/test-themes/` are local only: git ignores them and they're never bundled or
 released. Every build copies them into the game's `BepInEx/themes`, so the theme loader still loads them.
 
 **Releases:** `make_release_zips.ps1` builds everything and remakes `mods\<Mod>.zip` (committed) plus
@@ -99,10 +108,10 @@ Steam workshop mods won't load.
 
 ```bash
 powershell -ExecutionPolicy Bypass -File new-mod.ps1 -Name MyMod -DisplayName "My Mod"
-dotnet build MyMod -c Release
+dotnet build mods/MyMod -c Release
 ```
 
-That copies `ExampleMod` into `ModSource/MyMod` (project `KoboldKare.MyMod`, GUID `koboldkare.mymod`,
+That copies `mods/ExampleMod` into `mods/MyMod` (project `KoboldKare.MyMod`, GUID `koboldkare.mymod`,
 command `/mymod`, panel tab "My Mod") and adds it to the solution. A mod's `.csproj` is tiny; game
 references and deploy steps come from `Directory.Build.props` / `Directory.Build.targets`.
 
