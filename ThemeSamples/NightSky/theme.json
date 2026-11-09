@@ -1,0 +1,25 @@
+{
+  "name": "Night Sky",
+  "author": "UITheme sample",
+  "version": "1.0",
+  "description": "Deep navy panels, violet title bars and starlight accents. A colours-only sample theme.",
+  "colors": {
+    "overlay": "#05081AE6",
+    "window": "#121A33F2",
+    "panel": "#1A2444D9",
+    "surface": "#141C38FA",
+    "titleBar": "#5B4AB8",
+    "button": "#2C3A6B",
+    "buttonOk": "#4E6FD6B3",
+    "buttonCancel": "#C24F6BB3",
+    "control": "#E8E6FF",
+    "accent": "#FFD36E",
+    "text": "#E6E9FF",
+    "fieldText": "#1A2444",
+    "highlightText": "#FFD36E",
+    "icon": "#CFC8FF",
+    "hover": "#B9A8FF",
+    "pressed": "#3A2F8A"
+  },
+  "fonts": { "body": ["Segoe UI"], "headings": ["Segoe UI Black", "Arial Black"] }
+}

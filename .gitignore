@@ -1,0 +1,19 @@
+bin/
+obj/
+.vs/
+*.user
+build/
+dist/
+
+# Builds waiting to be installed (deploy.ps1 / the Mod Manager).
+_staged/
+
+# Never commit game files: sprites extracted from the game, its icon, its DLLs.
+GameIcons/
+*.dll
+*.exe
+*.ico
+*.log
+
+# Local-only test themes (copied into the game's BepInEx/themes by the UITheme build, never published).
+UITheme/test-themes/

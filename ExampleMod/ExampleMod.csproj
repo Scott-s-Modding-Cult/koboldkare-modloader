@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared settings and game references come from ../Directory.Build.props. -->
+  <PropertyGroup>
+    <AssemblyName>KoboldKare.ExampleMod</AssemblyName>
+    <RootNamespace>ExampleMod</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Describe your mod here. The mod manager shows this text.</Description>
+    <!-- Template only: builds, but isn't installed. new-mod.ps1 removes this line in your copy. -->
+    <IsTemplate>true</IsTemplate>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" />
+  </ItemGroup>
+</Project>

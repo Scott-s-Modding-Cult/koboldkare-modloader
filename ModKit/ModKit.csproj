@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared settings and game references come from ../Directory.Build.props. -->
+  <PropertyGroup>
+    <AssemblyName>KoboldKare.ModKit</AssemblyName>
+    <RootNamespace>KoboldKare.ModKit</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Shared framework the other mods build on: chat commands, the F8 mod panel, settings and map-load events.</Description>
+  </PropertyGroup>
+</Project>

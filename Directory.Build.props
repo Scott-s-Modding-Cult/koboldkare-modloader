@@ -1,0 +1,58 @@
+<Project>
+  <!--
+    Shared settings for every KoboldKare BepInEx mod in this folder. A mod's .csproj only needs:
+      <Project Sdk="Microsoft.NET.Sdk">
+        <PropertyGroup><AssemblyName>KoboldKare.MyMod</AssemblyName></PropertyGroup>
+        <ItemGroup><ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" /></ItemGroup>
+      </Project>
+  -->
+  <PropertyGroup>
+    <!-- net472, NOT netstandard: the game ships no netstandard.dll, and a netstandard plugin fails to
+         load with Unity's misleading "The script ... could not be instantiated!". -->
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- The KoboldKare folder. Defaults to the folder above this one (clone the repo into <game>\ModSource),
+         or pass -p:GameDir="X:\path\to\KoboldKare". -->
+    <GameDir Condition="'$(GameDir)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</GameDir>
+    <ManagedDir>$(GameDir)\KoboldKare_Data\Managed</ManagedDir>
+    <BepInExDir>$(GameDir)\BepInEx</BepInExDir>
+    <StagingDir>$(MSBuildThisFileDirectory)_staged</StagingDir>
+
+    <!-- Folder under BepInEx/plugins (defaults to the project name). -->
+    <PluginFolder Condition="'$(PluginFolder)' == ''">$(MSBuildProjectName)</PluginFolder>
+    <!-- Deploy=true copies into BepInEx/plugins (game must be closed: it locks loaded DLLs).
+         Build with -p:Deploy=false while the game runs; output then goes to ModSource/_staged. -->
+    <Deploy Condition="'$(Deploy)' == ''">true</Deploy>
+  </PropertyGroup>
+
+  <!-- Compile against the game's own (stripped) assemblies: if a member was stripped from the game,
+       the build fails instead of the mod failing at runtime. -->
+  <ItemGroup>
+    <Reference Include="$(BepInExDir)\core\BepInEx.dll" Private="false" />
+    <Reference Include="$(BepInExDir)\core\0Harmony.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\KoboldKare.ISavable.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.AnimationModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.UI.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.UIModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.Localization.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Unity.InputSystem.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\PhotonUnityNetworking.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\PhotonRealtime.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Photon3Unity3D.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Naelstrof.PenetrationTech.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\com.naelstrof.orbitcam.dll" Private="false" />
+    <!-- The game's AIModule is stripped of NavMeshPath/CalculatePath. BepInEx/unstripped_corlib holds the
+         full copy (loaded first via doorstop's dll_search_path_override). -->
+    <Reference Include="$(BepInExDir)\unstripped_corlib\UnityEngine.AIModule.dll" Private="false" />
+  </ItemGroup>
+</Project>

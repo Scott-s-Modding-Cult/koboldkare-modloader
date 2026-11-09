@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared settings and game references come from ../Directory.Build.props. -->
+  <PropertyGroup>
+    <AssemblyName>KoboldKare.NpcAI</AssemblyName>
+    <RootNamespace>KoboldKareNpcAI</RootNamespace>
+    <Version>2.0.0</Version>
+    <Description>NPC kobolds roam the map and pair up at animation stations. Command /npc-ai and an F8 panel tab.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Private=false: ModKit is its own plugin in BepInEx/plugins/ModKit, not copied next to this one. -->
+    <ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" />
+  </ItemGroup>
+</Project>

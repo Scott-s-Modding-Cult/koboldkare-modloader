@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    KoboldKare Mod Manager: a small Windows app that turns BepInEx plugins on and off, installs mods from
+    .zip/.dll files, installs staged builds, and starts the game through Steam.
+    Building it copies "KoboldKare Mod Manager.exe" into the game folder (skipped with a warning if it's open).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>KoboldKare Mod Manager</AssemblyName>
+    <RootNamespace>KoboldKareModManager</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>KoboldKare Mod Manager</Product>
+    <Description>Turns KoboldKare BepInEx mods on and off.</Description>
+    <!-- Taken from the game's own exe at build time (see MakeIcon), so no game files live in the repo. -->
+    <ApplicationIcon>$(MSBuildProjectDirectory)\obj\app.ico</ApplicationIcon>
+    <!-- Not a BepInEx plugin: Directory.Build.targets skips deploying it to BepInEx/plugins. -->
+    <IsModPlugin>false</IsModPlugin>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Drop the game references Directory.Build.props adds for plugins. -->
+    <Reference Remove="@(Reference)" />
+    <!-- Reads plugin attributes without loading (or locking) the DLLs. Loaded at runtime from BepInEx\core. -->
+    <Reference Include="$(BepInExDir)\core\Mono.Cecil.dll" Private="false" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="Microsoft.VisualBasic" />
+  </ItemGroup>
+
+  <Target Name="MakeIcon" BeforeTargets="CoreCompile;CoreResGen" Condition="!Exists('$(ApplicationIcon)')">
+    <MakeDir Directories="$(MSBuildProjectDirectory)\obj" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Add-Type -AssemblyName System.Drawing; $i = [Drawing.Icon]::ExtractAssociatedIcon('$(GameDir)\KoboldKare.exe'); $f = [IO.File]::Create('$(ApplicationIcon)'); $i.Save($f); $f.Close()&quot;" />
+  </Target>
+
+  <Target Name="InstallManager" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)" ContinueOnError="WarnAndContinue" />
+    <Message Importance="high" Text="Installed $(TargetFileName) -> game folder" />
+  </Target>
+</Project>

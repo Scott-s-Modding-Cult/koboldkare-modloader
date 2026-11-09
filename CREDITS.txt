@@ -1,0 +1,26 @@
+KoboldKare Mod Loader
+=====================
+
+Not affiliated with the developers of KoboldKare. You need your own copy of the game.
+
+KoboldKare-ModLoader.zip bundles these, unchanged, under their own licenses (full texts in BepInEx\licenses):
+
+- BepInEx 5 (BepInEx\core\BepInEx*.dll), LGPL-2.1
+  https://github.com/BepInEx/BepInEx
+- UnityDoorstop (winhttp.dll, doorstop_config.ini), LGPL-2.1
+  https://github.com/NeighTools/UnityDoorstop
+- HarmonyX (0Harmony*.dll, HarmonyXInterop.dll), MIT
+  https://github.com/BepInEx/HarmonyX
+- MonoMod (MonoMod.*.dll), MIT
+  https://github.com/MonoMod/MonoMod
+- Mono.Cecil (Mono.Cecil*.dll), MIT
+  https://github.com/jbevain/cecil
+- Mono class libraries (BepInEx\unstripped_corlib\mscorlib.dll, System.dll, System.Core.dll), MIT
+  https://github.com/mono/mono
+  KoboldKare ships stripped copies of these; BepInEx needs the full ones (doorstop's
+  dll_search_path_override points at unstripped_corlib).
+
+UnityEngine.AIModule.dll is Unity's and is not included. See README.md.
+
+The Mod Manager, ModKit, NPC AI and UI Theme are made for this repository. The Night Sky theme is a
+colours-only sample.

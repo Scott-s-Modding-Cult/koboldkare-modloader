@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Shared settings and game references come from ../Directory.Build.props. -->
+  <PropertyGroup>
+    <AssemblyName>KoboldKare.UITheme</AssemblyName>
+    <RootNamespace>UITheme</RootNamespace>
+    <Version>1.0.0</Version>
+    <Description>Recolours the game UI with themes from BepInEx/themes. Pick one in Options > Graphics > UI Theme, the F8 panel, or /theme.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ModKit\ModKit.csproj" Private="false" />
+    <Reference Include="$(ManagedDir)\SimpleJSON.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\Naelstrof.UnityScriptableSettings.dll" Private="false" />
+    <Reference Include="$(ManagedDir)\UnityEngine.ImageConversionModule.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- Bundled themes ship next to the plugin: BepInEx/plugins/UITheme/themes/<Theme>/... -->
+  <ItemGroup>
+    <BundledTheme Include="themes\**\*" />
+  </ItemGroup>
+  <Target Name="CopyBundledThemes" AfterTargets="Build" Condition="'$(IsTemplate)' != 'true'">
+    <PropertyGroup>
+      <ThemeDest Condition="'$(Deploy)' == 'true'">$(BepInExDir)\plugins\$(PluginFolder)\themes</ThemeDest>
+      <ThemeDest Condition="'$(Deploy)' != 'true'">$(StagingDir)\$(PluginFolder)\themes</ThemeDest>
+    </PropertyGroup>
+    <Copy SourceFiles="@(BundledTheme)" DestinationFiles="@(BundledTheme->'$(ThemeDest)\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <!-- Test themes: local only (git-ignored, never bundled or released). Every build copies them into the
+       game's user theme folder, BepInEx/themes/<Theme>/, so the theme loader keeps picking them up.
+       Theme files aren't locked by the game, so this works while it runs (then press Reload themes). -->
+  <ItemGroup>
+    <TestTheme Include="test-themes\**\*" />
+  </ItemGroup>
+  <Target Name="CopyTestThemes" AfterTargets="Build" Condition="'$(IsTemplate)' != 'true' And '@(TestTheme)' != ''">
+    <Copy SourceFiles="@(TestTheme)" DestinationFiles="@(TestTheme->'$(BepInExDir)\themes\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Test themes -> BepInEx\themes" />
+  </Target>
+</Project>
