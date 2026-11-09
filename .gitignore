@@ -17,3 +17,6 @@ GameIcons/
 
 # Local-only test themes (copied into the game's BepInEx/themes by the UITheme build, never published).
 mods/UITheme/test-themes/
+
+# Local-only project page preview (not published).
+docs/

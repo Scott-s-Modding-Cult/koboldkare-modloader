@@ -1,7 +1,7 @@
 # KoboldKare Mod Loader
 
 A mod manager, a small framework (ModKit) and a few mods for KoboldKare, all on [BepInEx 5](https://github.com/BepInEx/BepInEx).
-Tick the mods you want and play. **[See every mod on the project page](https://scottricity.github.io/koboldkare-modloader/).**
+Tick the mods you want and play.
 
 **You need your own copy of KoboldKare.** This repository holds no game files. Not affiliated with the developers of KoboldKare.
 These mods are adult content, like the game.
