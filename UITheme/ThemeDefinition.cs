@@ -110,6 +110,8 @@ namespace UITheme {
         public string Description = "";
         public string Folder;
         public bool IsDefault;
+        /// <summary>Made with the in-game theme editor ("custom": true): colours only, editable in game.</summary>
+        public bool Custom;
         public readonly Dictionary<string, Color> Colors = new Dictionary<string, Color>();
         public readonly List<string> Fonts = new List<string>();
         public readonly List<string> HeadingFonts = new List<string>();
@@ -160,6 +162,7 @@ namespace UITheme {
             theme.Author = Str(root["author"], "");
             theme.Version = Str(root["version"], "");
             theme.Description = Str(root["description"], "");
+            theme.Custom = root["custom"] != null && root["custom"].AsBool;
 
             var colors = root["colors"];
             if (colors != null) {
@@ -258,6 +261,36 @@ namespace UITheme {
                 return true;
             }
             return TryParseColor(node.Value, out color);
+        }
+
+        /// <summary>"#RRGGBBAA".</summary>
+        public static string ToHex(Color c) {
+            int B(float v) => Mathf.Clamp(Mathf.RoundToInt(v * 255f), 0, 255);
+            return "#" + B(c.r).ToString("X2") + B(c.g).ToString("X2") + B(c.b).ToString("X2") + B(c.a).ToString("X2");
+        }
+
+        /// <summary>theme.json for a theme made in the editor: name and colours only (no sprites or fonts,
+        /// so it keeps the game's own frame shapes).</summary>
+        public static string ToCustomJson(string name, IDictionary<string, Color> colors) {
+            string Escape(string s) => (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
+            var lines = new List<string> {
+                "{",
+                $"  \"name\": \"{Escape(name)}\",",
+                "  \"version\": \"1.0\",",
+                "  \"description\": \"Made with the in-game theme editor.\",",
+                "  \"custom\": true,",
+                "  \"colors\": {",
+            };
+            var roles = new List<string>();
+            foreach (var role in Roles.All) {
+                if (colors.TryGetValue(role, out var c)) {
+                    roles.Add($"    \"{role}\": \"{ToHex(c)}\"");
+                }
+            }
+            lines.Add(string.Join(",\n", roles.ToArray()));
+            lines.Add("  }");
+            lines.Add("}");
+            return string.Join("\n", lines.ToArray()) + "\n";
         }
 
         /// <summary>#RGB, #RRGGBB or #RRGGBBAA. (UnityEngine.ColorUtility is stripped in this game.)</summary>

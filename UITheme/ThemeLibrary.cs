@@ -91,6 +91,22 @@ namespace UITheme {
         /// <summary>Re-apply the current theme (e.g. after editing its files and reloading).</summary>
         public static void Reapply() => Select(Current);
 
+        /// <summary>Show <paramref name="theme"/> on the game UI without making it the saved choice (theme editor).</summary>
+        public static void Preview(ThemeDefinition theme) {
+            LoadAssets(theme);
+            Restyler.Apply(theme);
+        }
+
+        /// <summary>A theme made with the editor that lives in BepInEx/themes, so the editor may change it.</summary>
+        public static bool IsEditable(ThemeDefinition theme) {
+            if (theme == null || !theme.Custom || string.IsNullOrEmpty(theme.Folder)) {
+                return false;
+            }
+            string folder = Path.GetFullPath(theme.Folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string user = Path.GetFullPath(UserThemesFolder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return folder.StartsWith(user, StringComparison.OrdinalIgnoreCase);
+        }
+
         // ------------------------------------------------------------------ assets
 
         private static void LoadAssets(ThemeDefinition theme) {

@@ -11,6 +11,10 @@ Themes can also ship inside a plugin: `BepInEx/plugins/<Plugin>/themes/<Theme>/t
 Pick a theme in **Options > Graphics > UI Theme**, in the **Themes** tab of the mod panel (F8),
 or with `/theme <name>` in chat. Edit a theme's files, then press *Reload themes* to see changes live.
 
+Or make one in game: **Create theme** (Options > Graphics > UI Theme, or the F8 panel) picks a colour for
+each role with a live preview and saves `BepInEx/themes/<Name>/theme.json` with `""custom"": true`. Those
+themes are colours only (the game's own frame shapes) and can be changed later with **Edit theme**.
+
 ## theme.json
 
 ```json

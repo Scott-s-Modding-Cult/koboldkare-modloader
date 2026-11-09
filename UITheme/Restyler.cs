@@ -97,7 +97,8 @@ namespace UITheme {
             }
         }
 
-        private static bool IsExcluded(Transform t) => t.root.name == "ModKit_Panel";
+        // ModKit's panel is styled by ModKit itself; the theme editor keeps fixed colours so it stays readable.
+        private static bool IsExcluded(Transform t) => t.root.name == "ModKit_Panel" || t.root.name == ThemeEditor.RootName;
 
         private static void Prune() {
             foreach (var dead in Snaps.Keys.Where(k => k == null).ToList()) {

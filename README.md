@@ -30,7 +30,7 @@ To play without mods, untick **Load mods (BepInEx)** in the Mod Manager.
 |---|---|---|
 | ModKit | Framework the other mods build on: chat commands, the F8 mod panel, settings and map-load events | |
 | NPC AI | NPC kobolds roam the map and pair up at animation stations. `/npc-ai` and an F8 panel tab | ModKit |
-| UI Theme | Recolours the game UI with themes. Pick one in Options > Graphics > UI Theme, the F8 panel, or `/theme`. Comes with the Night Sky sample theme | ModKit |
+| UI Theme | Recolours the game UI with themes. Pick one in Options > Graphics > UI Theme, the F8 panel, or `/theme`. **Create theme** (under Import theme, or in the F8 panel) opens a colour editor with a live preview; your themes keep the game's frame shapes and show up in the dropdown, and **Edit theme** changes them later. Comes with the Night Sky sample theme | ModKit |
 
 **NPC AI and path-finding:** the game also ships a stripped `UnityEngine.AIModule.dll` without NavMesh path
 queries. That file is Unity's, so it isn't included here. Without it NPC AI walks straight toward its target

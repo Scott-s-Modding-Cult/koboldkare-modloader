@@ -7,6 +7,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Localization;
 using UnityEngine.Localization.Components;
+using UnityEngine.UI;
 using UnityScriptableSettings;
 
 namespace UITheme {
@@ -59,6 +60,107 @@ namespace UITheme {
             } finally {
                 syncing = false;
             }
+            EditorButtons.Refresh();
+        }
+    }
+
+    /// <summary>
+    /// "Custom theme" row under "Import theme": [+ Create theme] [Edit theme]. Built from a copy of the
+    /// game's own dropdown row, so it lines up and is restyled like the rows above it; the dropdown is
+    /// swapped for two buttons that use its look. Edit only works on themes made with the editor.
+    /// </summary>
+    internal static class EditorButtons {
+        private static Button edit;
+
+        internal static void Create(ScriptableSettingSpawner spawner) {
+            if (spawner.dropdown == null) {
+                return;
+            }
+            var row = UnityEngine.Object.Instantiate(spawner.dropdown, spawner.transform);
+            row.name = "UIThemeEditorButtons";
+            row.transform.localScale = Vector3.one;
+            var dropdown = row.GetComponentInChildren<TMP_Dropdown>(true);
+            if (dropdown == null || dropdown.gameObject == row) {
+                UnityEngine.Object.Destroy(row);
+                UIThemePlugin.Log.LogWarning("The Options row layout wasn't as expected, so the Create theme buttons are only in the F8 panel.");
+                return;
+            }
+            foreach (var text in row.GetComponentsInChildren<TMP_Text>(true)) {
+                if (text.name == "Label" && !text.transform.IsChildOf(dropdown.transform)) {
+                    var localizer = text.GetComponent<LocalizeStringEvent>();
+                    if (localizer != null) {
+                        localizer.enabled = false;
+                    }
+                    text.text = "Custom theme";
+                }
+            }
+
+            // Two buttons in exactly the dropdown's spot, drawn like it.
+            var spot = (RectTransform)dropdown.transform;
+            var holder = new GameObject("Buttons", typeof(RectTransform)).GetComponent<RectTransform>();
+            holder.SetParent(spot.parent, false);
+            holder.SetSiblingIndex(spot.GetSiblingIndex());
+            holder.anchorMin = spot.anchorMin;
+            holder.anchorMax = spot.anchorMax;
+            holder.pivot = spot.pivot;
+            holder.anchoredPosition = spot.anchoredPosition;
+            holder.sizeDelta = spot.sizeDelta;
+            var look = dropdown.targetGraphic as Image ?? dropdown.GetComponent<Image>();
+            var caption = dropdown.captionText;
+            MakeButton(holder, 0f, 0.5f, "+ Create theme", look, caption, dropdown.colors, ThemeEditor.Create);
+            edit = MakeButton(holder, 0.5f, 1f, "Edit theme", look, caption, dropdown.colors, () => ThemeEditor.Edit(ThemeLibrary.Current));
+            UnityEngine.Object.DestroyImmediate(dropdown.gameObject);
+
+            spawner.titles.Add(row); // removed with the section titles when the spawner cleans up
+            Refresh();
+            Restyler.RequestScan();
+        }
+
+        internal static void Refresh() {
+            if (edit != null) {
+                edit.interactable = ThemeLibrary.IsEditable(ThemeLibrary.Current);
+            }
+        }
+
+        private static Button MakeButton(RectTransform parent, float from, float to, string label, Image look, TMP_Text caption,
+                                         ColorBlock colors, Action onClick) {
+            var rect = new GameObject(label, typeof(RectTransform)).GetComponent<RectTransform>();
+            rect.SetParent(parent, false);
+            rect.anchorMin = new Vector2(from, 0f);
+            rect.anchorMax = new Vector2(to, 1f);
+            rect.offsetMin = new Vector2(from > 0f ? 6f : 0f, 0f);
+            rect.offsetMax = new Vector2(to < 1f ? -6f : 0f, 0f);
+            var image = rect.gameObject.AddComponent<Image>();
+            if (look != null) {
+                image.sprite = look.sprite;
+                image.type = look.type;
+                image.color = look.color;
+            }
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.colors = colors;
+            button.onClick.AddListener(() => onClick());
+
+            var textRect = new GameObject("Text", typeof(RectTransform)).GetComponent<RectTransform>();
+            textRect.SetParent(rect, false);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(10f, 0f);
+            textRect.offsetMax = new Vector2(-10f, 0f);
+            var text = textRect.gameObject.AddComponent<TextMeshProUGUI>();
+            if (caption != null) {
+                text.font = caption.font;
+                text.fontSize = caption.fontSize;
+                text.color = caption.color;
+            }
+            text.enableAutoSizing = true;
+            text.fontSizeMax = caption != null ? caption.fontSize : 24f;
+            text.fontSizeMin = 12f;
+            text.enableWordWrapping = false;
+            text.alignment = TextAlignmentOptions.Center;
+            text.raycastTarget = false;
+            text.text = label;
+            return button;
         }
     }
 
@@ -302,6 +404,11 @@ namespace UITheme {
                     }
                     // Our section is done: the rest of the tab gets its normal header back.
                     if (option is ThemeImportSetting) {
+                        try {
+                            EditorButtons.Create(__instance);
+                        } catch (Exception e) {
+                            UIThemePlugin.Log.LogWarning("Couldn't add the Create theme buttons: " + e.Message);
+                        }
                         RestoreGroupTitle(__instance, option);
                     }
                 } catch (Exception e) {

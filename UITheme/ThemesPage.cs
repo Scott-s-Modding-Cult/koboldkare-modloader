@@ -16,7 +16,9 @@ namespace UITheme {
 
         public static void Build(PageBuilder page) {
             status = page.Card(140f);
-            page.Button("Import theme...", Theme.FirstAvailable("ico_box_open", "ico_open", "ico_bag"), ThemeImporter.ImportFromDialog);
+            page.Buttons(
+                new ButtonSpec("Create theme", Theme.FirstAvailable("ico_star", "ico_gear"), ThemeEditor.Create),
+                new ButtonSpec("Import theme...", Theme.FirstAvailable("ico_box_open", "ico_open", "ico_bag"), ThemeImporter.ImportFromDialog));
             page.Buttons(
                 new ButtonSpec("Reload themes", Theme.FirstAvailable("ico_refresh", "ico_save"), Reload),
                 new ButtonSpec("Open themes folder", Theme.FirstAvailable("ico_open", "ico_bag"), OpenFolder, ButtonStyle.Subtle));
@@ -26,7 +28,8 @@ namespace UITheme {
                 AddThemeRow(page, theme);
             }
             page.Note($"Themes are folders with a theme.json in BepInEx/themes (or a plugin's themes folder). " +
-                      $"You can also pick one in Options > Graphics > {ThemeSetting.Label}, or with /theme <name>.");
+                      $"You can also pick one in Options > Graphics > {ThemeSetting.Label}, or with /theme <name>. " +
+                      "Create theme makes a colours-only theme (it keeps the game's frame shapes) that you can edit here later.");
         }
 
         public static void Refresh() {
@@ -45,19 +48,21 @@ namespace UITheme {
             float x = PageBuilder.Pad;
             float w = page.Width;
             bool current = theme == ThemeLibrary.Current;
+            bool editable = ThemeLibrary.IsEditable(theme);
+            float textW = w - (editable ? 310f : 190f);
 
             var row = NewRect("Theme " + theme.Id, page.Content);
             Place(row, x, y, w, height);
             AddImage(row, Theme.PanelSprite, current ? new Color(Theme.Accent.r, Theme.Accent.g, Theme.Accent.b, 0.25f) : Theme.Card);
 
-            var name = AddText(row, "Name", 16f, 8f, w - 190f, 36f, theme.Name, 28f, Theme.Text, TextAlignmentOptions.MidlineLeft);
+            var name = AddText(row, "Name", 16f, 8f, textW, 36f, theme.Name, 28f, Theme.Text, TextAlignmentOptions.MidlineLeft);
             name.enableWordWrapping = false;
             name.enableAutoSizing = true;
             name.fontSizeMin = 16f;
             name.fontSizeMax = 28f;
             string sub = string.IsNullOrEmpty(theme.Author) ? theme.Description : $"by {theme.Author}" +
                          (string.IsNullOrEmpty(theme.Description) ? "" : "  ·  " + theme.Description);
-            var subText = AddText(row, "Info", 16f, 44f, w - 190f, 28f, sub, 18f, Theme.TextDim, TextAlignmentOptions.TopLeft);
+            var subText = AddText(row, "Info", 16f, 44f, textW, 28f, sub, 18f, Theme.TextDim, TextAlignmentOptions.TopLeft);
             subText.enableWordWrapping = false;
             subText.overflowMode = TextOverflowModes.Ellipsis;
 
@@ -79,6 +84,10 @@ namespace UITheme {
                 current ? Theme.Card : Theme.Okay, current ? "ico_checkmark" : Theme.FirstAvailable("ico_pointing_at", "ico_star"),
                 current ? "In use" : "Apply", 24f, () => ThemeLibrary.Select(theme));
             apply.Interactable = !current;
+            if (editable) {
+                MakeButton(row, "Edit", w - 286f, (height - 56f) / 2f, 110f, 56f, Theme.PanelSprite, Theme.Card,
+                    Theme.FirstAvailable("ico_gear", "ico_star"), "Edit", 22f, () => ThemeEditor.Edit(theme), "panel");
+            }
 
             page.Space(height + 10f);
         }
